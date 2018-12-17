@@ -1,4 +1,4 @@
-from common import Raster, Vector
+from common import Raster, Vector, _find_dict_index
 
 
 class FieldError(Exception):
