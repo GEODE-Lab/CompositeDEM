@@ -28,7 +28,8 @@ class Raster(object):
             # get transform
             self.metadata['transform'] = fileptr.GetGeoTransform()
             self.metadata['spref'] = fileptr.GetProjectionRef()
-
+            
+            # read raster as array
             self.array = np.zeros((self.metadata['nbands'],
                                    self.metadata['nrows'],
                                    self.metadata['ncols']),
@@ -38,6 +39,7 @@ class Raster(object):
 
             self.metadata['bandname'] = list()
 
+            # loop through all bands
             for i in range(0, self.metadata['nbands']):
                 temp_band = fileptr.GetRasterBand(i+1)
 
