@@ -54,7 +54,7 @@ if __name__ == '__main__':
     '''
     example:
     hydro_flat.py "/temp/dem/astgdem_nad83_cgrid1_lzw.tif" "/temp/dem/astgdem_nad83_cgrid1_lzw_hyd_flat.tif"
-    "/temp/dem/lakes/lakes.shp" 25
+    "/temp/dem/lakes/lakes.shp" 10
     '''
 
     raster_file, raster_out_file, hydro_shape_file = sys.argv[1:4]
