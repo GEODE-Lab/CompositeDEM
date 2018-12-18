@@ -6,14 +6,16 @@ from common import Raster, Vector
 def main(raster_name,
          out_raster_name,
          hydro_file,
-         pctl):
+         pctl=10,
+         min_pixels=25):
 
     """
     Main function to run hydro flattening
     :param raster_name: Raster filename with full path
     :param out_raster_name: The output file to write the final raster
     :param hydro_file: Shapefile of water body boundaries
-    :param pctl: Percentile value to substitute
+    :param pctl: Percentile value to substitute (default: 10)
+    :param min_pixels: Number of minimum pixels for extraction (default: 25)
     :return: None
     """
 
@@ -37,9 +39,10 @@ def main(raster_name,
     print(intersect_vector)
 
     # replace values by percentile
-    raster.vector_extract(intersect_vector,
-                          pctl=pctl,
-                          replace=True)
+    result = raster.vector_extract(intersect_vector,
+                                   pctl=pctl,
+                                   replace=True,
+                                   min_pixels=min_pixels)
 
     # write to disk
     raster.write_raster(outfile=out_raster_name)
@@ -54,8 +57,18 @@ if __name__ == '__main__':
     "/temp/dem/lakes/lakes.shp" 25
     '''
 
-    script, raster_file, raster_out_file, hydro_shape_file, percentile = sys.argv
+    raster_file, raster_out_file, hydro_shape_file = sys.argv[1:4]
+
+    if len(sys.argv) > 4:
+        percentile = sys.argv[4]
+    else:
+        percentile = 10  # default
+
+    if len(sys.argv) > 5:
+        min_pixels = sys.argv[5]
+    else:
+        min_pixels = 25  # default
 
     print('\nHydro-flattening...\n')
-    main(raster_file, raster_out_file, hydro_shape_file, percentile)
+    main(raster_file, raster_out_file, hydro_shape_file, percentile, min_pixels)
     print('\n----------------------------------------------\n Done!\n')

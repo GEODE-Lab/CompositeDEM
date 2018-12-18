@@ -28,7 +28,7 @@ class Raster(object):
             # get transform
             self.metadata['transform'] = fileptr.GetGeoTransform()
             self.metadata['spref'] = fileptr.GetProjectionRef()
-            
+
             # read raster as array
             self.array = np.zeros((self.metadata['nbands'],
                                    self.metadata['nrows'],
@@ -79,6 +79,7 @@ class Raster(object):
                        vector,
                        pctl=25,
                        band_index=0,
+                       min_pixels=25,
                        replace=False):
 
         """
@@ -87,6 +88,7 @@ class Raster(object):
         :param vector: Vector class object
         :param pctl: Percentile to be calculated
         :param band_index: Which band to operate on
+        :param min_pixels: Number of minimum pixels for extraction (default: 25)
         :param replace: If the raster pixels should be replaced by the calculated percentile value
         :return: List of percentiles by vector features
         """
@@ -162,16 +164,24 @@ class Raster(object):
             # calculate the percentile value
             pixel_xyz_loc = list((band_index,) + ptup for ptup in pixel_xy_loc)
             temp_vals = list(self.array.item(loc) for loc in pixel_xyz_loc)
+
+            # extract pixels other than the no-data value
             pixel_vals = list(val for val in temp_vals if val != self.metadata['nodatavalue'])
 
-            # calculate percentile value
-            pctl_val = np.percentile(pixel_vals, pctl)
+            # replace only if the number of pixels is greater than min value
+            if len(pixel_vals) < min_pixels:
+                pctl_val = None
 
-            if replace:
-                for loc in pixel_xyz_loc:
-                    out_arr[loc] = pctl_val
+            else:
+                # calculate percentile value
+                pctl_val = np.percentile(pixel_vals, pctl)
 
-                self.array = out_arr
+                # if replaced specified, replace pixels in the raster array
+                if replace:
+                    for loc in pixel_xyz_loc:
+                        out_arr[loc] = pctl_val
+
+                    self.array = out_arr
 
             extract_list.append(pctl_val)
 
