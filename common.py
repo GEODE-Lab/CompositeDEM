@@ -369,14 +369,15 @@ class Vector(object):
                 feat = self.layer.GetNextFeature()
 
                 feat_count += 1
-
-            print("\nInitialized Vector {} of type {} ".format(self.name,
-                                                               self.type) +
-                  "with {} feature(s) and {} attribute(s)".format(str(self.nfeat),
-                                                                  str(len(self.fields))))
+            if verbose:
+                print("\nInitialized Vector {} of type {} ".format(self.name,
+                                                                   self.type) +
+                      "with {} feature(s) and {} attribute(s)".format(str(self.nfeat),
+                                                                      str(len(self.fields))))
 
         else:
-            print("\nInitialized empty Vector")
+            if verbose:
+                print("\nInitialized empty Vector")
 
     def __repr__(self):
         return "<Vector {} of type {} ".format(self.name,
