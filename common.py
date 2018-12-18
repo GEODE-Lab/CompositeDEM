@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 from osgeo import gdal, osr, gdal_array, ogr
 
@@ -299,7 +300,8 @@ class Vector(object):
     """
     def __init__(self,
                  filename=None,
-                 layer_index=0):
+                 layer_index=0,
+                 verbose=False):
         """
         Constructor for class Vector
         :param filename: Name of the vector file (shapefile) with full path
@@ -343,12 +345,22 @@ class Vector(object):
             layer_definition = self.layer.GetLayerDefn()
             self.fields = [layer_definition.GetFieldDefn(i) for i in range(0, layer_definition.GetFieldCount())]
 
+            # number of features
+            self.nfeat = self.layer.GetFeatureCount()
+
             # iterate thru features and append to list
             feat = self.layer.GetNextFeature()
 
+            feat_count = 0
             while feat:
                 all_items = feat.items()
                 geom = feat.geometry()
+
+                if verbose:
+                    attr_dict = json.dumps(all_items)
+                    print('Feature {} of {} : {}'.format(str(feat_count+1),
+                                                         str(self.nfeat),
+                                                         attr_dict))
 
                 self.attributes.append(all_items)
                 self.features.append(feat)
@@ -356,7 +368,7 @@ class Vector(object):
 
                 feat = self.layer.GetNextFeature()
 
-            self.nfeat = self.layer.GetFeatureCount()
+                feat_count += 1
 
             print("\nInitialized Vector {} of type {} ".format(self.name,
                                                                self.type) +
