@@ -298,6 +298,7 @@ class Vector(object):
     """
     Class for vector objects
     """
+
     def __init__(self,
                  filename=None,
                  layer_index=0,
@@ -384,6 +385,173 @@ class Vector(object):
                                                self.type) + \
                "with {} feature(s) and {} attribute(s) >".format(str(self.nfeat),
                                                                  str(len(self.fields)))
+
+    @staticmethod
+    def ogr_data_type(x):
+        """
+        Method to get OGR data type, for use in creating OGR geometry fields
+        :param x: Any data input
+        :return: OGR data type
+        """
+        val = type(x).__name__.lower()
+
+        val_dict = {
+            'int': ogr.OFTInteger,
+            'long': ogr.OFTInteger,
+            'float': ogr.OFTReal,
+            'double': ogr.OFTReal,
+            'str': ogr.OFTString,
+            'bool': ogr.OFTInteger,
+            'nonetype': ogr.OFSTNone,
+            'none': ogr.OFSTNone,
+        }
+
+        try:
+            return val_dict[val]
+        except (KeyError, NameError):
+            return val_dict['nonetype']
+
+    @staticmethod
+    def ogr_geom_type(x):
+        """
+        Method to return OGR geometry type from input string
+        :param x: String to convert to OGR geometry type code
+        :return: OGR geometry type code
+        """
+
+        if type(x).__name__ == 'str':
+            comp_str = x.lower()
+            comp_dict = {
+                'point': 1,
+                'line': 2,
+                'linestring': 2,
+                'polygon': 3,
+                'multipoint': 4,
+                'multilinestring': 5,
+                'multipolygon': 6,
+                'geometry': 0,
+                'no geometry': 100
+            }
+            try:
+                return comp_dict[comp_str]
+            except (KeyError, NameError):
+                return None
+
+        elif type(x).__name__ == 'int' or type(x).__name__ == 'float':
+            comp_dict = {
+                1: 'point',
+                2: 'linestring',
+                3: 'polygon',
+                4: 'multipoint',
+                5: 'multilinestring',
+                6: 'multipolygon',
+                0: 'geometry',
+                100: 'no geometry',
+            }
+            try:
+                return comp_dict[int(x)].upper()
+            except (KeyError, NameError):
+                return None
+
+        else:
+            raise(ValueError('Invalid format'))
+
+    @staticmethod
+    def string_to_ogr_type(x):
+        """
+        Method to return name of the data type
+        :param x: input item
+        :return: string
+        """
+        if type(x).__name__ != 'str':
+            return Vector.ogr_data_type(x)
+        else:
+            try:
+                val = int(x)
+            except ValueError:
+                try:
+                    val = float(x)
+                except ValueError:
+                    try:
+                        val = str(x)
+                    except:
+                        val = None
+
+            return Vector.ogr_data_type(val)
+
+    def write_vector(self,
+                     outfile=None,
+                     in_memory=False):
+        """
+        Method to write the vector object to memory or to file
+        :param outfile: File to write the vector object to
+        :param in_memory: If the vector object should be written in memory (default: False)
+        :return: Vector object if written to memory else NoneType
+        """
+
+        if in_memory:
+
+            driver_type = 'Memory'
+
+            if outfile is not None:
+                outfile = os.path.basename(outfile).split('.')[0]
+            else:
+                outfile = 'in_memory'
+
+            out_driver = ogr.GetDriverByName(driver_type)
+            out_datasource = out_driver.CreateDataSource(outfile)
+            out_layer = out_datasource.CopyLayer(self.layer, outfile)
+
+            out_vector = Vector()
+
+            out_vector.data_source = out_datasource
+            out_vector.mem_source = out_datasource
+
+            return out_vector
+
+        else:
+
+            if outfile is None:
+                outfile = self.filename
+                if self.filename is None:
+                    raise ValueError("No filename for output")
+
+            if os.path.basename(outfile).split('.')[-1] == 'json':
+                driver_type = 'GeoJSON'
+            elif os.path.basename(outfile).split('.')[-1] == 'csv':
+                driver_type = 'Comma Separated Value'
+            else:
+                driver_type = 'ESRI Shapefile'
+
+            out_driver = ogr.GetDriverByName(driver_type)
+            out_datasource = out_driver.CreateDataSource(outfile)
+
+            out_layer = out_datasource.CreateLayer(os.path.basename(outfile).split('.')[0],
+                                                   srs=self.crs_string,
+                                                   geom_type=self.type)
+
+            for attr_key, attr_val in self.attributes[0].items():
+                    field = ogr.FieldDefn(attr_key, self.string_to_ogr_type(attr_val))
+                    res = out_layer.CreateField(field)
+
+            layer_defn = out_layer.GetLayerDefn()
+
+            if len(self.wkt_list) > 0:
+                for i, wkt_geom in enumerate(self.wkt_list):
+                    geom = ogr.CreateGeometryFromWkt(wkt_geom)
+                    feat = ogr.Feature(layer_defn)
+                    feat.SetGeometry(geom)
+
+                    for attr, val in self.attributes[i].items():
+                        feat.SetField(attr, val)
+
+                    out_layer.CreateFeature(feat)
+
+            else:
+                for feature in self.features:
+                    out_layer.CreateFeature(feature)
+
+            out_datasource = out_driver = None
 
     def get_intersecting_vector(self,
                                 query_vector,
