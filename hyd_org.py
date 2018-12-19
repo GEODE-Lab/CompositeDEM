@@ -120,6 +120,9 @@ if __name__ == '__main__':
 
     multi_tile_lake_idx = list(i for i in range(0, len(id_list)) if len(id_list[i]) > 1)
 
+    print(multi_tile_lake_idx)
+    print(len(multi_tile_lake_idx))
+
 
 
 
