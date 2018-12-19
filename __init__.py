@@ -1,4 +1,4 @@
-from common import Raster, Vector, _find_dict_index
+from common import Raster, Vector, File, Timer, _find_dict_index
 
 
 class FieldError(Exception):
