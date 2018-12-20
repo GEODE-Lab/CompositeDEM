@@ -323,6 +323,9 @@ class Vector(object):
     def __init__(self,
                  filename=None,
                  layer_index=0,
+                 spref_str=None,
+                 geom_type=3,
+                 in_memory=False,
                  verbose=False):
         """
         Constructor for class Vector
@@ -341,27 +344,43 @@ class Vector(object):
         self.crs_string = None
         self.type = None
         self.name = 'Empty'
-        self.nfeat = None
+        self.nfeat = 0
         self.fields = list()
 
         if filename is not None and os.path.isfile(filename):
 
             # open vector file
             self.data_source = ogr.Open(self.filename)
+            file_layer = self.data_source.GetLayerByIndex(layer_index)
 
-            # get layer
-            self.layer = self.data_source.GetLayerByIndex(layer_index)
+            if in_memory:
+                out_driver = ogr.GetDriverByName('Memory')
+                out_datasource = out_driver.CreateDataSource('mem_source')
+                self.layer = out_datasource.CopyLayer(file_layer, 'mem_source')
+                self.data_source = out_datasource
+                file_layer = None
+
+            else:
+                # get layer
+                self.layer = file_layer
 
             # spatial reference
             self.spref = self.layer.GetSpatialRef()
+
+            if spref_str is not None:
+                dest_spref = osr.SpatialReference()
+                res = dest_spref.ImportFromWkt(spref_str)
+
+                if self.spref.IsSame(dest_spref) == 1:
+                    dest_spref = None
+            else:
+                dest_spref = None
+
             self.crs_string = self.spref.ExportToWkt()
 
             # other layer metadata
             self.type = self.layer.GetGeomType()
             self.name = self.layer.GetName()
-
-            # extract feature attributes
-            # and feature geometry feature string
 
             # get field defintions
             layer_definition = self.layer.GetLayerDefn()
@@ -370,13 +389,34 @@ class Vector(object):
             # number of features
             self.nfeat = self.layer.GetFeatureCount()
 
+            # if the vector should be initialized in some other spatial reference
+            if dest_spref is not None:
+                transform_tool = osr.CoordinateTransformation(self.spref,
+                                                              dest_spref)
+            else:
+                transform_tool = None
+
             # iterate thru features and append to list
             feat = self.layer.GetNextFeature()
 
             feat_count = 0
             while feat:
+                # extract feature attributes
                 all_items = feat.items()
-                geom = feat.geometry()
+
+                # and feature geometry feature string
+                geom = feat.GetGeometryRef()
+
+                # convert to another projection and write new features
+                if dest_spref is not None:
+                    geom.Transform(transform_tool)
+
+                    new_feat = ogr.Feature(layer_definition)
+                    for attr, val in all_items.items():
+                        new_feat.SetField(attr, val)
+                    new_feat.SetGeometry(geom)
+                else:
+                    new_feat = feat
 
                 if verbose:
                     attr_dict = json.dumps(all_items)
@@ -385,25 +425,41 @@ class Vector(object):
                                                          attr_dict))
 
                 self.attributes.append(all_items)
-                self.features.append(feat)
+                self.features.append(new_feat)
                 self.wkt_list.append(geom.ExportToWkt())
+                feat_count += 1
 
                 feat = self.layer.GetNextFeature()
 
-                feat_count += 1
             if verbose:
                 print("\nInitialized Vector {} of type {} ".format(self.name,
-                                                                   self.type) +
+                                                                   self.ogr_geom_type(self.type)) +
                       "with {} feature(s) and {} attribute(s)".format(str(self.nfeat),
                                                                       str(len(self.fields))))
 
         else:
+            if in_memory:
+                out_driver = ogr.GetDriverByName('Memory')
+                out_datasource = out_driver.CreateDataSource('mem_source')
+                self.data_source = out_datasource
+                self.type = geom_type
+
+                self.spref = osr.SpatialReference()
+                res = self.spref.ImportFromWkt(spref_str)
+
+                self.layer = self.data_source.CreateLayer('mem_layer',
+                                                          srs=self.spref,
+                                                          geom_type=geom_type)
+                fid = ogr.FieldDefn('fid', ogr.OFTInteger)
+                self.layer.CreateField(fid)
+                self.fields = [fid]
+
             if verbose:
                 print("\nInitialized empty Vector")
 
     def __repr__(self):
         return "<Vector {} of type {} ".format(self.name,
-                                               self.type) + \
+                                               self.ogr_geom_type(self.type)) + \
                "with {} feature(s) and {} attribute(s) >".format(str(self.nfeat),
                                                                  str(len(self.fields)))
 
@@ -502,6 +558,40 @@ class Vector(object):
                             val = None
 
             return Vector.ogr_data_type(val)
+
+    def add_geom(self,
+                 geom,
+                 primary_key='fid',
+                 attr=None):
+
+        """
+        Add geometry as a feature to a Vector in memory
+        :param geom: osgeo geometry
+        :param primary_key: primary key for the attribute table
+        :param attr: Attributes
+        :return: None
+        """
+
+        feat = ogr.Feature(self.layer.GetLayerDefn())
+        feat.SetGeometry(geom)
+
+        if attr is not None:
+            for k, v in attr.items():
+                feat.SetField(k, v)
+            if primary_key not in attr:
+                feat.SetField(primary_key, self.nfeat)
+        else:
+            feat.SetField(primary_key, self.nfeat)
+
+        self.layer.CreateFeature(feat)
+        self.features.append(feat)
+        self.wkt_list.append(geom.ExportToWkt())
+        if attr is not None:
+            self.attributes.append(attr)
+        else:
+            self.attributes.append({primary_key, self.nfeat})
+
+        self.nfeat += 1
 
     def write_vector(self,
                      outfile=None,
@@ -790,6 +880,34 @@ class Vector(object):
             self.wkt_list = vector.wkt_list
             self.crs_string = vector.crs_string
 
+    @staticmethod
+    def reproj_geom(geoms,
+                    source_spref_str,
+                    dest_spref_str):
+
+        """
+        Method to reproject geometries
+        :param geoms: List of osgeo geometries or a single geometry
+        :param source_spref_str: Source spatial reference string
+        :param dest_spref_str: Destination spatial reference string
+        :return: osgeo geometry
+        """
+
+        source_spref = osr.SpatialReference()
+        dest_spref = osr.SpatialReference()
+
+        res = source_spref.ImportFromWkt(source_spref_str)
+        res = dest_spref.ImportFromWkt(dest_spref_str)
+
+        transform_tool = osr.CoordinateTransformation(source_spref,
+                                                      dest_spref)
+        if type(geoms).__name__ == 'list':
+            for geom in geoms:
+                geom.Transfrom(transform_tool)
+        else:
+            geoms.Transform(transform_tool)
+        return geoms
+
 
 class File(object):
     """
@@ -802,6 +920,8 @@ class File(object):
         :param filename: Name of the file
         """
         self.sep = os.path.sep
+
+        self.filename = filename
 
         if self.filename is not None:
             self.basename = os.path.basename(filename)
