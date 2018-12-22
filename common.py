@@ -6,6 +6,8 @@ import fnmatch
 import numpy as np
 from functools import wraps
 from osgeo import gdal, osr, gdal_array, ogr
+gdal.UseExceptions()
+ogr.UseExceptions()
 
 
 def _find_dict_index(list_of_dicts,
@@ -334,7 +336,6 @@ class Vector(object):
         """
 
         self.filename = filename
-        self.nfeat = None
         self.features = list()
         self.attributes = list()
         self.wkt_list = list()
@@ -346,6 +347,7 @@ class Vector(object):
         self.name = 'Empty'
         self.nfeat = 0
         self.fields = list()
+        self.data = list()
 
         if filename is not None and os.path.isfile(filename):
 
@@ -382,6 +384,10 @@ class Vector(object):
             self.type = self.layer.GetGeomType()
             self.name = self.layer.GetName()
 
+            if verbose:
+                print('Reading vector {} of type {} ...'.format(self.name,
+                                                                str(self.type)))
+
             # get field defintions
             layer_definition = self.layer.GetLayerDefn()
             self.fields = [layer_definition.GetFieldDefn(i) for i in range(0, layer_definition.GetFieldCount())]
@@ -393,6 +399,7 @@ class Vector(object):
             if dest_spref is not None:
                 transform_tool = osr.CoordinateTransformation(self.spref,
                                                               dest_spref)
+                self.spref = dest_spref
             else:
                 transform_tool = None
 
@@ -407,6 +414,9 @@ class Vector(object):
                 # and feature geometry feature string
                 geom = feat.GetGeometryRef()
 
+                if self.type == 3:
+                    geom.CloseRings()
+
                 # convert to another projection and write new features
                 if dest_spref is not None:
                     geom.Transform(transform_tool)
@@ -420,9 +430,9 @@ class Vector(object):
 
                 if verbose:
                     attr_dict = json.dumps(all_items)
-                    print('Feature {} of {} : {}'.format(str(feat_count+1),
-                                                         str(self.nfeat),
-                                                         attr_dict))
+                    print('Feature {} of {} : attr {}'.format(str(feat_count+1),
+                                                              str(self.nfeat),
+                                                              attr_dict))
 
                 self.attributes.append(all_items)
                 self.features.append(new_feat)
@@ -559,7 +569,7 @@ class Vector(object):
 
             return Vector.ogr_data_type(val)
 
-    def add_geom(self,
+    def add_feat(self,
                  geom,
                  primary_key='fid',
                  attr=None):
@@ -578,20 +588,47 @@ class Vector(object):
         if attr is not None:
             for k, v in attr.items():
                 feat.SetField(k, v)
-            if primary_key not in attr:
-                feat.SetField(primary_key, self.nfeat)
+            if primary_key is not None:
+                if primary_key not in attr:
+                    feat.SetField(primary_key, self.nfeat)
         else:
-            feat.SetField(primary_key, self.nfeat)
+            if primary_key is not None:
+                feat.SetField(primary_key, self.nfeat)
 
         self.layer.CreateFeature(feat)
         self.features.append(feat)
         self.wkt_list.append(geom.ExportToWkt())
         if attr is not None:
             self.attributes.append(attr)
-        else:
+        elif primary_key is not None:
             self.attributes.append({primary_key, self.nfeat})
 
         self.nfeat += 1
+
+    def merge(self,
+              vector,
+              remove=False):
+
+        """
+        Method to merge two alike vectors. This method only works for vectors
+        that have same spref or crs_string, attribute keys, and geom types
+        :param vector: Vector to merge in self
+        :param remove: if the vector should be removed after merging
+        :return: None
+        """
+
+        for i, feat in enumerate(vector.features):
+            geom = feat.GetGeometryRef()
+            attr = feat.items()
+
+            self.add_feat(geom=geom,
+                          attr=attr)
+
+            if len(vector.data) > 0:
+                self.data.append(vector.data[i])
+
+        if remove:
+            vector = None
 
     def write_vector(self,
                      outfile=None,
@@ -898,9 +935,9 @@ class Vector(object):
 
         res = source_spref.ImportFromWkt(source_spref_str)
         res = dest_spref.ImportFromWkt(dest_spref_str)
-
         transform_tool = osr.CoordinateTransformation(source_spref,
                                                       dest_spref)
+
         if type(geoms).__name__ == 'list':
             for geom in geoms:
                 geom.Transfrom(transform_tool)
