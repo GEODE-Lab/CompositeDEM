@@ -151,7 +151,7 @@ if __name__ == '__main__':
             if geom.Intersects(border_geom):
                 border_list.append({'orig_id': orig_id,
                                     'filename': filename,
-                                    'geom': geom})
+                                    'geom': geom.ExportToWkt()})
             else:
                 samp_list.append((orig_id,
                                   geom.ExportToWkt(),
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                 if geom.Intersects(border_geom):
                     border_list.append({'orig_id': orig_id,
                                         'filename': filename,
-                                        'geom': geom})
+                                        'geom': geom.ExportToWkt()})
                 else:
                     samp_list.append((orig_id,
                                       geom.ExportToWkt(),
@@ -239,9 +239,9 @@ if __name__ == '__main__':
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
 
-    for error in error_list:
-        print(error)
-    sys.stdout.flush()
+    for err in error_list:
+        print(err)
+
     print('----------------------------------------------------------------')
     print('Spatial ref strings: \n')
     print(ak_vec.crs_string)
@@ -249,6 +249,8 @@ if __name__ == '__main__':
     print(tile_vec.crs_string)
     print('----------------------------------------------------------------')
     print('Merge Canada and Alaska lakes...')
+    sys.stdout.flush()
+
     can_vec.merge(ak_vec, True)
 
     can_vec.name = 'ak_can_merged'
@@ -257,6 +259,7 @@ if __name__ == '__main__':
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
     print('Output unmerged lakes in border region...')
+    sys.stdout.flush()
 
     border_lakes_pre = Vector(in_memory=True,
                               spref_str=main_crs_str,
@@ -268,7 +271,7 @@ if __name__ == '__main__':
     border_lakes_pre.crs_string = main_crs_str
 
     for lake in border_list:
-        border_lakes_pre.add_feat(geom=lake['geom'],
+        border_lakes_pre.add_feat(geom=ogr.CreateGeometryFromWkt(lake['geom']),
                                   attr={'orig_id': lake['orig_id'],
                                         'filename': lake['filename']})
 
@@ -282,7 +285,8 @@ if __name__ == '__main__':
     sample_list = list()
 
     for i in range(0, len(border_list)):
-        geom_buf = border_list[i]['geom'].Buffer(buffer_dist)
+        geom = ogr.CreateGeometryFromWkt(border_list[i]['geom'])
+        geom_buf = geom.Buffer(buffer_dist)
         geom_wkt = geom_buf.ExportToWkt()
 
         sample_list.append((i,
@@ -294,6 +298,8 @@ if __name__ == '__main__':
 
     intersect_list = list(intersect_results[ii] for ii in range(0, len(border_list)))
 
+    print('Found {} intersecting lakes at the border'.format(str(len(intersect_list))))
+
     multi_list = list()
     samp_list = list()
     for geom_list in intersect_list:
@@ -301,11 +307,11 @@ if __name__ == '__main__':
             geom_dict = border_list[geom_list[0]]
 
             samp_list.append((geom_dict['orig_id'],
-                              geom_dict['geom'].ExportToWkt(),
+                              geom_dict['geom'],
                               tile_vec.wkt_list,
                               tile_vec.attributes))
 
-            can_vec.add_feat(geom=geom_dict['geom'],
+            can_vec.add_feat(geom=ogr.CreateGeometryFromWkt(geom_dict['geom']),
                              attr={'filename': geom_dict['filename'],
                                    'orig_id': geom_dict['orig_id']})
 
@@ -342,6 +348,8 @@ if __name__ == '__main__':
     for idx in empty_idx:
         multi_list.pop(idx)
 
+    print('Final list of intersecting lakes has {} elements'.format(str(len(multi_list))))
+
     print('Step (group multi intersecting) completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
     print('Merging geometries...')
@@ -368,7 +376,8 @@ if __name__ == '__main__':
         multi_geom = ogr.Geometry(ogr.wkbMultiPolygon)
 
         for elem in grp:
-            multi_geom.AddGeometryDirectly(border_list[elem]['geom'].Buffer(buffer_dist))
+            geom = ogr.CreateGeometryFromWkt(border_list[elem]['geom'])
+            multi_geom.AddGeometryDirectly(geom.Buffer(buffer_dist))
 
         grp_geom = multi_geom.UnionCascaded()
 
@@ -423,13 +432,13 @@ if __name__ == '__main__':
         lake_tiles = can_vec.data[orig_id]
 
         for lake_tile in lake_tiles:
-            tile_dict[lake_tile][orig_id].update({'geom': geom,
+            tile_dict[lake_tile][orig_id].update({'geom': geom.ExportToWkt(),
                                                   'filename': filename})
 
         if len(lake_tiles) > 1:
             if len(lake_tiles) > max_tiles:
                 max_tiles = len(lake_tiles)
-            multi_tile_dict.update({orig_id: {'geom': geom,
+            multi_tile_dict.update({orig_id: {'geom': geom.ExportToWkt(),
                                               'filename': filename,
                                               'tiles': lake_tiles}})
     print('Extract lake parameters...completed at {}'.format(Timer.display_time(time.time() - t)))
@@ -446,7 +455,7 @@ if __name__ == '__main__':
         tile_lakes.crs_string = main_crs_str
 
         for key, val in tile_dict[tile_name].items():
-            lake_geom = val['geom']
+            lake_geom = ogr.CreateGeometryFromWkt(val['geom'])
             lake_attr = {'orig_id': key,
                          'filename': val['filename']}
 
@@ -481,7 +490,7 @@ if __name__ == '__main__':
     multi_tile_lakes.crs_string = main_crs_str
 
     for key, attr in multi_tile_dict.items():
-        geom = attr['geom']
+        geom = ogr.CreateGeometryFromWkt(attr['geom'])
         tile_list = attr['tiles']
 
         attributes = {'orig_id': key,
