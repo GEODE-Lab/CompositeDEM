@@ -560,12 +560,9 @@ class Vector(object):
                     val = float(x)
                 except ValueError:
                     try:
-                        val = bool(x)
-                    except ValueError:
-                        try:
-                            val = str(x)
-                        except:
-                            val = None
+                        val = str(x)
+                    except:
+                        val = None
 
             return Vector.ogr_data_type(val)
 
@@ -678,7 +675,7 @@ class Vector(object):
             out_datasource = out_driver.CreateDataSource(outfile)
 
             out_layer = out_datasource.CreateLayer(os.path.basename(outfile).split('.')[0],
-                                                   srs=self.crs_string,
+                                                   srs=self.spref,
                                                    geom_type=self.type)
 
             for attr_key, attr_val in self.attributes[0].items():
