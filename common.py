@@ -347,7 +347,7 @@ class Vector(object):
         self.name = 'Empty'
         self.nfeat = 0
         self.fields = list()
-        self.data = list()
+        self.data = dict()
 
         if filename is not None and os.path.isfile(filename):
 
@@ -624,8 +624,8 @@ class Vector(object):
             self.add_feat(geom=geom,
                           attr=attr)
 
-            if len(vector.data) > 0:
-                self.data.append(vector.data[i])
+        if len(vector.data) > 0:
+            self.data.update(vector.data)
 
         if remove:
             vector = None
