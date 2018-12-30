@@ -1,8 +1,10 @@
 import os
+import sys
 import json
 import time
 import shutil
 import fnmatch
+import itertools
 import numpy as np
 from functools import wraps
 from osgeo import gdal, osr, gdal_array, ogr
@@ -80,17 +82,17 @@ class Raster(object):
 
             fileptr = None
 
-            print('\nInitialized Raster {} of shape {}x{}x{}'.format(os.path.basename(self.filename),
-                                                                     self.metadata['nbands'],
-                                                                     self.metadata['nrows'],
-                                                                     self.metadata['ncols']))
+            sys.stdout.write('\nInitialized Raster {} of shape {}x{}x{}'.format(os.path.basename(self.filename),
+                                                                                self.metadata['nbands'],
+                                                                                self.metadata['nrows'],
+                                                                                self.metadata['ncols']))
         else:
 
             self.filename = filename
             self.metadata = dict()
             self.array = np.empty(shape=[0, 0, 0])
 
-            print('\nInitialized empty Raster')
+            sys.stdout.write('\nInitialized empty Raster')
 
     def __repr__(self):
         return "<Raster {} of shape {}x{}x{} at {}>".format(os.path.basename(self.filename),
@@ -277,7 +279,7 @@ class Raster(object):
         :param file_type: File type (default: 'GTiff')
         :return: None
         """
-        print('\nWriting {} raster: {}'.format(file_type,
+        sys.stdout.write('\nWriting {} raster: {}'.format(file_type,
                                                outfile))
 
         if self.array is not None and self.metadata['datatype'] is None:
@@ -328,7 +330,8 @@ class Vector(object):
                  spref_str=None,
                  geom_type=3,
                  in_memory=False,
-                 verbose=False):
+                 verbose=False,
+                 feat_limit=None):
         """
         Constructor for class Vector
         :param filename: Name of the vector file (shapefile) with full path
@@ -346,6 +349,7 @@ class Vector(object):
         self.type = None
         self.name = 'Empty'
         self.nfeat = 0
+        self.bounds = None
         self.fields = list()
         self.data = dict()
 
@@ -384,16 +388,23 @@ class Vector(object):
             self.type = self.layer.GetGeomType()
             self.name = self.layer.GetName()
 
+            # number of features
+            self.nfeat = self.layer.GetFeatureCount()
+
             if verbose:
-                print('Reading vector {} of type {} ...'.format(self.name,
-                                                                str(self.type)))
+                sys.stdout.write('Reading vector {} of type {} with {} features\n'.format(self.name,
+                                                                                          str(self.type),
+                                                                                          str(self.nfeat)))
 
             # get field defintions
             layer_definition = self.layer.GetLayerDefn()
             self.fields = [layer_definition.GetFieldDefn(i) for i in range(0, layer_definition.GetFieldCount())]
 
-            # number of features
-            self.nfeat = self.layer.GetFeatureCount()
+            # coordinates for bounds
+            xmin = 0.0
+            ymin = 0.0
+            xmax = 0.0
+            ymax = 0.0
 
             # if the vector should be initialized in some other spatial reference
             if dest_spref is not None:
@@ -408,13 +419,18 @@ class Vector(object):
 
             feat_count = 0
             while feat:
+                if feat_limit is not None:
+                    if feat_count >= feat_limit:
+                        break
+
                 # extract feature attributes
                 all_items = feat.items()
 
                 # and feature geometry feature string
                 geom = feat.GetGeometryRef()
 
-                if self.type == 3:
+                # close rings if polygon
+                if geom_type == 3:
                     geom.CloseRings()
 
                 # convert to another projection and write new features
@@ -428,11 +444,44 @@ class Vector(object):
                 else:
                     new_feat = feat
 
+                # get bounds
+                bounds_json = json.loads(geom.GetBoundary().ExportToJson())
+                coord_list = bounds_json['coordinates']
+
+                if bounds_json['type'] == 'LineString':
+                    coords = coord_list
+
+                elif bounds_json['type'] == 'MultiLineString':
+                    coords = list()
+                    for part in coord_list:
+                        coords = coords + part
+                else:
+                    coords = [[0.0, 0.0]]
+
+                xlist = list(coord[0] for coord in coords)
+                ylist = list(coord[1] for coord in coords)
+
+                # find bound coords
+                if feat_count == 0:
+                    xmin = min(xlist)
+                    xmax = max(xlist)
+                    ymin = min(ylist)
+                    ymax = max(ylist)
+                else:
+                    if xmin > min(xlist):
+                        xmin = min(xlist)
+                    if xmax < max(xlist):
+                        xmax = max(xlist)
+                    if ymin > min(ylist):
+                        ymin = min(ylist)
+                    if ymax < max(ylist):
+                        ymax = max(ylist)
+
                 if verbose:
                     attr_dict = json.dumps(all_items)
-                    print('Feature {} of {} : attr {}'.format(str(feat_count+1),
-                                                              str(self.nfeat),
-                                                              attr_dict))
+                    sys.stdout.write('Feature {} of {} : attr {}\n'.format(str(feat_count+1),
+                                                                           str(self.nfeat),
+                                                                           attr_dict))
 
                 self.attributes.append(all_items)
                 self.features.append(new_feat)
@@ -441,12 +490,23 @@ class Vector(object):
 
                 feat = self.layer.GetNextFeature()
 
-            if verbose:
-                print("\nInitialized Vector {} of type {} ".format(self.name,
-                                                                   self.ogr_geom_type(self.type)) +
-                      "with {} feature(s) and {} attribute(s)".format(str(self.nfeat),
-                                                                      str(len(self.fields))))
+            self.nfeat = len(self.features)
 
+            # get bounds geometry
+            bound_coords = [[[xmin, ymin],
+                             [xmin, ymax],
+                             [xmax, ymax],
+                             [xmax, ymin],
+                             [xmin, ymin]]]
+
+            self.bounds = ogr.CreateGeometryFromJson(json.dumps({"type": "Polygon",
+                                                                 "coordinates": bound_coords}))
+
+            if verbose:
+                sys.stdout.write("\nInitialized Vector {} of type {} ".format(self.name,
+                                                                              self.ogr_geom_type(self.type)) +
+                                 "with {} feature(s) and {} attribute(s)\n\n".format(str(self.nfeat),
+                                                                                   str(len(self.fields))))
         else:
             if in_memory:
                 out_driver = ogr.GetDriverByName('Memory')
@@ -461,11 +521,12 @@ class Vector(object):
                                                           srs=self.spref,
                                                           geom_type=geom_type)
                 fid = ogr.FieldDefn('fid', ogr.OFTInteger)
+                fid.SetPrecision(9)
                 self.layer.CreateField(fid)
                 self.fields = [fid]
 
             if verbose:
-                print("\nInitialized empty Vector")
+                sys.stdout.write("\nInitialized empty Vector\n")
 
     def __repr__(self):
         return "<Vector {} of type {} ".format(self.name,
@@ -565,6 +626,49 @@ class Vector(object):
                         val = None
 
             return Vector.ogr_data_type(val)
+
+    @staticmethod
+    def geom_bounds(geom):
+        """
+        Method to get bounds of an OGR geometry
+        :param geom: OGR geometry object
+        :return: List of (x, y) tuples: polygon
+        """
+
+        geom_coords = json.loads(geom.ExportToJson())['coordinates']
+        geom_type = geom.GetGeometryType()
+
+        # flatten geometry (x, y) list
+        if geom_type == 1:
+            coords = [geom_coords]
+        elif geom_type == 2 or geom_type == 4:
+            coords = geom_coords
+        elif geom_type == 3 or geom_type == 5:
+            coords = list()
+            for part in geom_coords:
+                coords = coords + part
+        elif geom_type == 6:
+            coords = list()
+            for polygon in geom_coords:
+                for part in polygon:
+                    coords = coords + part
+        else:
+            coords = list()
+
+        xlist = list(coord[0] for coord in coords)
+        ylist = list(coord[1] for coord in coords)
+
+        if len(coords) > 0:
+            bounds = [(min(xlist), min(ylist)),
+                      (min(xlist), max(ylist)),
+                      (max(xlist), max(ylist)),
+                      (max(xlist), min(ylist)),
+                      (min(xlist), min(ylist))]
+
+            return json.dumps({"type": "Polygon",
+                               "coordinates": bounds})
+        else:
+            return
 
     def add_feat(self,
                  geom,
@@ -678,9 +782,8 @@ class Vector(object):
                                                    srs=self.spref,
                                                    geom_type=self.type)
 
-            for attr_key, attr_val in self.attributes[0].items():
-                    field = ogr.FieldDefn(attr_key, self.string_to_ogr_type(attr_val))
-                    res = out_layer.CreateField(field)
+            for field in self.fields:
+                out_layer.CreateField(field)
 
             layer_defn = out_layer.GetLayerDefn()
 
@@ -695,9 +798,12 @@ class Vector(object):
 
                     out_layer.CreateFeature(feat)
 
-            else:
+            elif len(self.features) > 0:
                 for feature in self.features:
                     out_layer.CreateFeature(feature)
+
+            else:
+                sys.stdout.write('No features found... closing file.\n')
 
             out_datasource = out_driver = None
 
@@ -1081,19 +1187,19 @@ class File(object):
         # get a filename that does not exist at that location
         counter = 1
         while os.path.isfile(self.filename):
-            # print('File exists: ' + filename)
-            # print('Deleting file...')
+            # sys.stdout.write('File exists: ' + filename)
+            # sys.stdout.write('Deleting file...')
             try:
                 os.remove(self.filename)
             except OSError:
-                print('File already exists. Error deleting file!')
+                sys.stdout.write('File already exists. Error deleting file!')
                 components = self.basename.split('.')
                 if len(components) < 2:
                     self.filename = self.dirpath + self.sep + self.basename + '_' + str(counter)
                 else:
                     self.filename = self.dirpath + self.sep + ''.join(components[0:-1]) + \
                                '_(' + str(counter) + ').' + components[-1]
-                # print('Unable to delete, using: ' + filename)
+                # sys.stdout.write('Unable to delete, using: ' + filename)
                 counter = counter + 1
         return self.filename
 
@@ -1168,7 +1274,7 @@ class Timer:
             try:
                 seconds = float(seconds)
             except (TypeError, ValueError, NameError):
-                print("Type not coercible to Float")
+                sys.stdout.write("Type not coercible to Float")
 
         # break denominations
         for name, count in intervals:
@@ -1209,8 +1315,8 @@ class Timer:
                 # time to run
                 t = Timer.display_time(t2 - t1)
 
-                print("Time it took to run {}: {}\n".format(func.__name__,
-                                                            t))
+                sys.stdout.write("Time it took to run {}: {}\n".format(func.__name__,
+                                                                       t))
                 return val
 
             return wrapper
