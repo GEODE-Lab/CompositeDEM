@@ -49,6 +49,38 @@ def find_intersecting(args):
     return fid, intersect_list
 
 
+def group_multi(in_list):
+    """
+    Method to group all numbers that occur together in any piece-wise-list manner
+    :param in_list: List of lists
+    :return: list of lists
+    """
+    out_list = copy.deepcopy(in_list)
+
+    for j, elem in enumerate(out_list[:-1]):
+        if len(elem) > 0:
+            i = 0
+            while i < len(elem):
+                for check_elem in out_list[(j+1):]:
+                    if len(check_elem) > 0:
+                        if elem[i] in check_elem:
+                            elem = elem + check_elem
+                            idx_gen = sorted(list(range(len(check_elem))),
+                                             reverse=True)
+                            for idx in idx_gen:
+                                check_elem.pop(idx)
+                i += 1
+            out_list[j] = sorted(list(set(elem)))
+
+    empty_idx = sorted(list(i for i, elem in enumerate(out_list) if len(elem) == 0),
+                       reverse=True)
+
+    for idx in empty_idx:
+        out_list.pop(idx)
+
+    return out_list
+
+
 if __name__ == '__main__':
     t = time.time()
 
@@ -60,17 +92,20 @@ if __name__ == '__main__':
     can_file_dir = "f:/hydroFlat/vectors/CAN/2_shps/indiv/"
     tile_file = "f:/hydroFlat/grids/PCS_NAD83_C_grid_ABoVE_intersection.shp"
 
-    pre_merge_border_vec = "f:/hydroFlat/vectors/pre_merge_border_lakes.shp"
-    post_merge_border_vec = "f:/hydroFlat/vectors/post_merge_border_lakes.shp"
+    pre_merge_border_vec = "f:/hydroFlat/vectors/pre_merge_border_lakes2.shp"
+    post_merge_border_vec = "f:/hydroFlat/vectors/post_merge_border_lakes2.shp"
 
-    out_file = "f:/hydroFlat/vectors/alaska_canada_lakes.shp"
+    out_file = "f:/hydroFlat/vectors/alaska_canada_lakes2.json"
 
-    out_dir = "f:/hydroFlat/lakes/"
+    out_dir = "f:/hydroFlat/lakes2/"
 
     buffer_dist = 1  # meters
 
     error_list = list()
     border_list = list()
+
+    geog_spref = osr.SpatialReference()
+    geog_spref.ImportFromProj4('+proj=longlat +datum=WGS84')
 
     print('----------------------------------------------------------------')
     print('processing tile vector.....')
@@ -84,25 +119,59 @@ if __name__ == '__main__':
     print(tile_vec)
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
+    print('processing ABoVE boundary vector.....')
+
+    above_coords = [[[-168.83884, 66.60503], [-168.66305, 64.72256], [-166.11423, 63.29787], [-168.83884, 60.31062],
+                     [-166.02634, 56.92698], [-166.64157, 54.70557], [-164.84625, 54.05535], [-157.94684, 54.69525],
+                     [-153.64020, 56.21509], [-151.17926, 57.48851], [-149.64118, 58.87838], [-147.67361, 61.37118],
+                     [-142.04861, 59.70736], [-135.67654, 58.69490], [-130.48731, 55.73262], [-124.82205, 50.42354],
+                     [-113.70389, 51.06312], [-112.07791, 53.29901], [-109.00174, 53.03557], [-105.16527, 52.53873],
+                     [-101.13553, 50.36751], [-98.007415, 49.77869], [-96.880859, 48.80976], [-94.983189, 48.94521],
+                     [-94.851353, 52.79709], [-88.238500, 56.92737], [-91.862463, 57.81702], [-93.775610, 59.60700],
+                     [-92.984594, 61.25472], [-87.315649, 64.30688], [-80.504125, 66.77919], [-79.976781, 68.59675],
+                     [-81.426977, 69.84364], [-84.547094, 70.00956], [-87.447485, 69.93430], [-91.094946, 70.77629],
+                     [-91.798071, 72.17192], [-89.688696, 73.86475], [-89.600805, 74.33426], [-92.940649, 74.61654],
+                     [-93.380102, 75.58784], [-94.874242, 75.69681], [-95.137914, 75.86949], [-96.719946, 76.56045],
+                     [-97.598852, 76.81343], [-97.618407, 77.32284], [-99.552001, 78.91297], [-103.94653, 79.75829],
+                     [-113.79028, 78.81110], [-124.33715, 76.52777], [-128.02856, 71.03224], [-136.99340, 69.67342],
+                     [-149.64965, 71.03224], [-158.08715, 71.65080], [-167.93090, 69.24910]]]
+
+    # ABoVE vector in memory
+    above_bounds_str = json.dumps({"type": "Polygon",
+                                   "coordinates": above_coords})
+
+    above_geom = ogr.CreateGeometryFromJson(above_bounds_str)
+    above_geom.CloseRings()
+    above_geom = Vector.reproj_geom(above_geom,
+                                    geog_spref.ExportToWkt(),
+                                    main_crs_str)
+
+    above_vec = Vector(in_memory=True,
+                       spref_str=geog_spref.ExportToWkt(),
+                       geom_type=Vector.ogr_geom_type('polygon'))
+
+    above_vec.name = 'above_bounds'
+    above_vec.add_feat(above_geom)
+
+    print(above_vec)
+    print('Completed at {}'.format(Timer.display_time(time.time() - t)))
+    print('----------------------------------------------------------------')
     print('processing border vector.....')
 
     # make border vector in memory
-    border_json = {"type": "Polygon", "coordinates": [[[-142.277, 70.526], [-141.749, 60.199], [-130.675, 54.165],
-                                                       [-128.126, 55.680], [-135.421, 60.111], [-137.355, 59.715],
-                                                       [-139.904, 61.061], [-140.167, 70.438]]]}
+    border_json_str = json.dumps({"type": "Polygon", "coordinates": [[[-142.277, 70.526], [-141.749, 60.199],
+                                                                      [-130.675, 54.165], [-128.126, 55.680],
+                                                                      [-135.421, 60.111], [-137.355, 59.715],
+                                                                      [-139.904, 61.061], [-140.167, 70.438]]]})
 
-    border_spref = osr.SpatialReference()
-    border_spref.ImportFromProj4('+proj=longlat +datum=WGS84')
-
-    border_json_str = json.dumps(border_json)
     border_geom = ogr.CreateGeometryFromJson(border_json_str)
     border_geom.CloseRings()
     border_geom = Vector.reproj_geom(border_geom,
-                                     border_spref.ExportToWkt(),
+                                     geog_spref.ExportToWkt(),
                                      main_crs_str)
 
     border_vec = Vector(in_memory=True,
-                        spref_str=border_spref.ExportToWkt(),
+                        spref_str=geog_spref.ExportToWkt(),
                         geom_type=Vector.ogr_geom_type('polygon'))
 
     border_vec.name = 'border'
@@ -123,6 +192,9 @@ if __name__ == '__main__':
 
     filename_attr = ogr.FieldDefn('filename', ogr.OFTString)
     id_attr = ogr.FieldDefn('orig_id', ogr.OFTString)
+    area_attr = ogr.FieldDefn('area', ogr.OFTReal)
+    area_attr.SetPrecision(8)
+    area_attr.SetWidth(32)
 
     ak_vec.layer.CreateField(filename_attr)
     ak_vec.layer.CreateField(id_attr)
@@ -164,6 +236,10 @@ if __name__ == '__main__':
 
         temp_vec = None
 
+    print('Finding tile names for ak vector...')
+
+    sys.stdout.flush()
+
     results = pool.map(find_tile,
                        samp_list)
 
@@ -201,37 +277,108 @@ if __name__ == '__main__':
 
         try:
             temp_vec = Vector(filename=can_file,
-                              spref_str=main_crs_str)
+                              spref_str=main_crs_str,
+                              geom_type=Vector.ogr_geom_type('polygon'))
 
         except (AttributeError, RuntimeError):
             error_list.append('Error reading {}'.format(can_file))
             print('Error reading {}'.format(can_file))
+
         if temp_vec:
+            if temp_vec.bounds.Intersects(above_geom):
 
-            for feat in temp_vec.features:
-                geom = feat.GetGeometryRef()
-                orig_id = feat.items()['NID']
+                geom_sample_list = list()
 
-                if geom.Intersects(border_geom):
-                    border_list.append({'orig_id': orig_id,
-                                        'filename': filename,
-                                        'geom': geom.ExportToWkt()})
-                else:
-                    samp_list.append((orig_id,
-                                      geom.ExportToWkt(),
-                                      tile_vec.wkt_list,
-                                      tile_vec.attributes))
+                for ij in range(0, temp_vec.nfeat):
+                    geom = ogr.CreateGeometryFromWkt(temp_vec.wkt_list[ij])
+                    geom_buf = geom.Buffer(buffer_dist)
+                    geom_wkt = geom_buf.ExportToWkt()
 
-                    can_vec.add_feat(geom=geom,
-                                     attr={'filename': filename,
-                                           'orig_id': orig_id})
+                    geom_sample_list.append((ij,
+                                             geom_wkt,
+                                             temp_vec.wkt_list))
 
-            temp_vec = None
+                intersect_results = dict(pool.map(find_intersecting,
+                                                  geom_sample_list))
 
-            results = pool.map(find_tile,
-                               samp_list)
+                multi_list = list()
+                samp_list = list()
+                for ig in range(0, temp_vec.nfeat):
+                    feat = temp_vec.features[ig]
+                    if len(intersect_results[ig]) == 1:
+                        geom = feat.GetGeometryRef()
+                        geom_dict = temp_vec.attributes[ig]
 
-            can_vec.data.update(dict(results))
+                        if geom.Intersects(border_geom):
+                            border_list.append({'orig_id': geom_dict['NID'],
+                                                'filename': filename,
+                                                'geom': temp_vec.wkt_list[ig]})
+                        else:
+                            samp_list.append((geom_dict['NID'],
+                                              temp_vec.wkt_list[ig],
+                                              tile_vec.wkt_list,
+                                              tile_vec.attributes))
+
+                            can_vec.add_feat(geom=geom,
+                                             attr={'filename': filename,
+                                                   'orig_id': geom_dict['NID']})
+
+                    elif len(intersect_results[ig]) > 1:
+                        multi_list.append(intersect_results[ig])
+
+                print('Found {} non-intersecting lakes for {}'.format(str(len(samp_list)),
+                                                                      temp_vec.name))
+
+                print('Found {} intersecting/touching lakes for {}'.format(str(len(multi_list)),
+                                                                           temp_vec.name))
+
+                print('Finding tile names for non-intersecting geometries...')
+
+                single_geom_results = pool.map(find_tile,
+                                               samp_list)
+
+                can_vec.data.update(dict(single_geom_results))
+
+                if len(multi_list) > 0:
+
+                    print('Grouping multiple geometries...')
+
+                    multi_list = group_multi(multi_list)
+
+                    samp_list = list()
+                    for grp in multi_list:
+                        grp_orig_id = temp_vec.attributes[grp[0]]['NID']
+                        multi_geom = ogr.Geometry(ogr.wkbMultiPolygon)
+
+                        for elem in grp:
+                            geom = ogr.CreateGeometryFromWkt(temp_vec.wkt_list[elem])
+                            multi_geom.AddGeometryDirectly(geom.Buffer(buffer_dist))
+
+                        grp_geom = multi_geom.UnionCascaded()
+
+                        if grp_geom.Intersects(border_geom):
+                            border_list.append({'orig_id': grp_orig_id,
+                                                'filename': filename,
+                                                'geom': grp_geom.ExportToWkt()})
+                        else:
+
+                            samp_list.append((grp_orig_id,
+                                              grp_geom.ExportToWkt(),
+                                              tile_vec.wkt_list,
+                                              tile_vec.attributes))
+
+                            can_vec.add_feat(geom=grp_geom,
+                                             attr={'filename': filename,
+                                                   'orig_id': grp_orig_id})
+
+                    print('Finding tile names for grouped intersecting geometries...')
+
+                    multi_geom_results = pool.map(find_tile,
+                                                  samp_list)
+
+                    can_vec.data.update(dict(multi_geom_results))
+            else:
+                print('Vector is outside AOI')
 
         sys.stdout.flush()
 
@@ -298,8 +445,6 @@ if __name__ == '__main__':
 
     intersect_list = list(intersect_results[ii] for ii in range(0, len(border_list)))
 
-    print('Found {} intersecting lakes at the border'.format(str(len(intersect_list))))
-
     multi_list = list()
     samp_list = list()
     for geom_list in intersect_list:
@@ -318,6 +463,8 @@ if __name__ == '__main__':
         elif len(geom_list) > 1:
             multi_list.append(geom_list)
 
+    print('Found {} intersecting lakes at the border'.format(str(len(multi_list))))
+
     single_geom_results = pool.map(find_tile,
                                    samp_list)
 
@@ -327,26 +474,7 @@ if __name__ == '__main__':
     print('----------------------------------------------------------------')
     sys.stdout.flush()
 
-    for j, multi in enumerate(multi_list[:-1]):
-        if len(multi) > 0:
-            i = 0
-            while i < len(multi):
-                for check_multi in multi_list[(j+1):]:
-                    if len(check_multi) > 0:
-                        if multi[i] in check_multi:
-                            multi = multi + check_multi
-                            index_gen = sorted(list(range(len(check_multi))),
-                                               reverse=True)
-                            for index in index_gen:
-                                check_multi.pop(index)
-                i += 1
-            multi_list[j] = sorted(list(set(multi)))
-
-    empty_idx = sorted(list(i for i, elem in enumerate(multi_list) if len(elem) == 0),
-                       reverse=True)
-
-    for idx in empty_idx:
-        multi_list.pop(idx)
+    multi_list = group_multi(multi_list)
 
     print('Final list of intersecting lakes has {} elements'.format(str(len(multi_list))))
 
@@ -394,10 +522,10 @@ if __name__ == '__main__':
                                    attr={'filename': grp_filename,
                                          'orig_id': grp_orig_id})
 
-    border_results = pool.map(find_tile,
-                              sample_list)
+    multi_geom_results = pool.map(find_tile,
+                                  sample_list)
 
-    can_vec.data.update(dict(border_results))
+    can_vec.data.update(dict(multi_geom_results))
 
     border_lakes_post.write_vector(post_merge_border_vec)
 
@@ -450,20 +578,24 @@ if __name__ == '__main__':
         tile_lakes.name = tile_name
         tile_lakes.layer.CreateField(filename_attr)
         tile_lakes.layer.CreateField(id_attr)
+        tile_lakes.layer.CreateField(area_attr)
 
-        tile_lakes.fields = tile_lakes.fields + [filename_attr, id_attr]
+        tile_lakes.fields = tile_lakes.fields + [filename_attr, id_attr, area_attr]
         tile_lakes.crs_string = main_crs_str
 
-        for key, val in tile_dict[tile_name].items():
-            lake_geom = ogr.CreateGeometryFromWkt(val['geom'])
-            lake_attr = {'orig_id': key,
-                         'filename': val['filename']}
+        if tile_name in tile_dict:
+            for key, val in tile_dict[tile_name].items():
+                lake_geom = ogr.CreateGeometryFromWkt(val['geom'])
+                geom_area = lake_geom.GetArea()
+                lake_attr = {'orig_id': key,
+                             'filename': val['filename'],
+                             'area': geom_area}
 
-            tile_lakes.add_feat(geom=lake_geom,
-                                attr=lake_attr)
-
-        print('Writing vector: {}'.format(tile_lakes))
-        tile_lakes.write_vector(out_dir + tile_name + '.shp')
+                tile_lakes.add_feat(geom=lake_geom,
+                                    attr=lake_attr)
+        if tile_lakes.nfeat > 0:
+            print('Writing vector: {}'.format(tile_lakes))
+            tile_lakes.write_vector(out_dir + tile_name + '.shp')
 
     print('Step (write individual tile files) completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
@@ -475,11 +607,16 @@ if __name__ == '__main__':
                               spref_str=main_crs_str,
                               geom_type=Vector.ogr_geom_type('polygon'))
 
+    ntiles = ogr.FieldDefn('n_tiles', ogr.OFTInteger)
+    ntiles.SetPrecision(9)
+
     multi_tile_lakes.name = 'multi_tile_lakes'
     multi_tile_lakes.layer.CreateField(filename_attr)
     multi_tile_lakes.layer.CreateField(id_attr)
+    multi_tile_lakes.layer.CreateField(ntiles)
+    multi_tile_lakes.layer.CreateField(area_attr)
 
-    multi_tile_lakes.fields = multi_tile_lakes.fields + [filename_attr, id_attr]
+    multi_tile_lakes.fields = multi_tile_lakes.fields + [filename_attr, id_attr, ntiles, area_attr]
 
     tile_attrs = list()
     for ti in range(max_tiles):
@@ -492,9 +629,13 @@ if __name__ == '__main__':
     for key, attr in multi_tile_dict.items():
         geom = ogr.CreateGeometryFromWkt(attr['geom'])
         tile_list = attr['tiles']
+        ntiles = len(tile_list)
+        area = geom.GetArea()
 
         attributes = {'orig_id': key,
-                      'filename': attr['filename']}
+                      'filename': attr['filename'],
+                      'n_tiles': ntiles,
+                      'area': area}
 
         for t, tile in enumerate(tile_list):
             attributes.update({'tile{}'.format(str(t+1)): tile})
@@ -511,6 +652,13 @@ if __name__ == '__main__':
 
     print('Writing all lakes vector for Canada and Alaska...')
     can_vec.write_vector(outfile=out_file)
+
+    prj_file = out_file.split('.')[0] + '.prj'
+    if File(prj_file).file_exists():
+        File(prj_file).file_delete()
+
+    with open(prj_file, 'w') as pf:
+        pf.write(can_vec.spref.ExportToWkt())
 
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
