@@ -627,49 +627,6 @@ class Vector(object):
 
             return Vector.ogr_data_type(val)
 
-    @staticmethod
-    def geom_bounds(geom):
-        """
-        Method to get bounds of an OGR geometry
-        :param geom: OGR geometry object
-        :return: List of (x, y) tuples: polygon
-        """
-
-        geom_coords = json.loads(geom.ExportToJson())['coordinates']
-        geom_type = geom.GetGeometryType()
-
-        # flatten geometry (x, y) list
-        if geom_type == 1:
-            coords = [geom_coords]
-        elif geom_type == 2 or geom_type == 4:
-            coords = geom_coords
-        elif geom_type == 3 or geom_type == 5:
-            coords = list()
-            for part in geom_coords:
-                coords = coords + part
-        elif geom_type == 6:
-            coords = list()
-            for polygon in geom_coords:
-                for part in polygon:
-                    coords = coords + part
-        else:
-            coords = list()
-
-        xlist = list(coord[0] for coord in coords)
-        ylist = list(coord[1] for coord in coords)
-
-        if len(coords) > 0:
-            bounds = [(min(xlist), min(ylist)),
-                      (min(xlist), max(ylist)),
-                      (max(xlist), max(ylist)),
-                      (max(xlist), min(ylist)),
-                      (min(xlist), min(ylist))]
-
-            return json.dumps({"type": "Polygon",
-                               "coordinates": bounds})
-        else:
-            return
-
     def add_feat(self,
                  geom,
                  primary_key='fid',
@@ -700,9 +657,11 @@ class Vector(object):
         self.features.append(feat)
         self.wkt_list.append(geom.ExportToWkt())
         if attr is not None:
+            if primary_key is not None:
+                attr.update({primary_key: self.nfeat})
             self.attributes.append(attr)
         elif primary_key is not None:
-            self.attributes.append({primary_key, self.nfeat})
+            self.attributes.append({primary_key: self.nfeat})
 
         self.nfeat += 1
 
