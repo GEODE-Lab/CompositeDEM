@@ -94,16 +94,16 @@ if __name__ == '__main__':
     print('CPUs: {}'.format(str(size)))
 
     # file paths
-    ak_file = "f:/hydroFlat/vectors/US_AK/3_merged/NHD_AK_WB_noGlac_diss_gte1000m2.shp"
-    can_file_dir = "f:/hydroFlat/vectors/CAN/2_shps/indiv/"
-    tile_file = "f:/hydroFlat/grids/PCS_NAD83_C_grid_ABoVE_intersection.shp"
+    ak_file = "/projects/dem/hydroFlat/vectors/US_AK/3_merged/NHD_AK_WB_noGlac_diss_gte1000m2.shp"
+    can_file_dir = "/projects/dem/hydroFlat/vectors/CAN/2_shps/indiv/"
+    tile_file = "/projects/dem/hydroFlat/grids/PCS_NAD83_C_grid_ABoVE_intersection.shp"
 
-    pre_merge_border_vec = "f:/hydroFlat/vectors/pre_merge_border_lakes2.shp"
-    post_merge_border_vec = "f:/hydroFlat/vectors/post_merge_border_lakes2.shp"
+    pre_merge_border_vec = "/projects/dem/hydroFlat/vectors/pre_merge_border_lakes.shp"
+    post_merge_border_vec = "/projects/dem/hydroFlat/vectors/post_merge_border_lakes.shp"
 
-    out_file = "f:/hydroFlat/vectors/alaska_canada_lakes2.json"
+    out_file = "/projects/dem/hydroFlat/vectors/alaska_canada_lakes.json"
 
-    out_dir = "f:/hydroFlat/lakes2/"
+    out_dir = "/projects/dem/hydroFlat/lakes/"
 
     error_list = list()
     border_list = list()
@@ -164,30 +164,6 @@ if __name__ == '__main__':
     above_vec.add_feat(above_geom)
 
     print(above_vec)
-    print('Completed at {}'.format(Timer.display_time(time.time() - t)))
-    print('----------------------------------------------------------------')
-    print('processing border vector.....')
-
-    # make border vector in memory
-    border_json_str = json.dumps({"type": "Polygon", "coordinates": [[[-142.277, 70.526], [-141.749, 60.199],
-                                                                      [-130.675, 54.165], [-128.126, 55.680],
-                                                                      [-135.421, 60.111], [-137.355, 59.715],
-                                                                      [-139.904, 61.061], [-140.167, 70.438]]]})
-
-    border_geom = ogr.CreateGeometryFromJson(border_json_str)
-    border_geom.CloseRings()
-    border_geom = Vector.reproj_geom(border_geom,
-                                     geog_spref.ExportToWkt(),
-                                     main_crs_str)
-
-    border_vec = Vector(in_memory=True,
-                        spref_str=geog_spref.ExportToWkt(),
-                        geom_type=Vector.ogr_geom_type('polygon'))
-
-    border_vec.name = 'border'
-    border_vec.add_feat(border_geom)
-
-    print(border_vec)
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
     print('processing ak vector.....')
