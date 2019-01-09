@@ -130,7 +130,7 @@ class Raster(object):
         for i in range(0, vector.nfeat):
 
             # convert vector wkt string to geometry
-            geom = ogr.CreateGeometryFromWkt(vector.wkt_list[i])
+            geom = ogr.CreateGeometryFromWkt(vector.wktlist[i])
             spref = osr.SpatialReference()
             result = spref.ImportFromWkt(self.metadata['spref'])
 
@@ -240,17 +240,17 @@ class Raster(object):
 
         bounds_vector = Vector()
 
-        bounds_vector.wkt_list.append(bounds_wkt)
-        bounds_vector.crs_string = self.metadata['spref']
+        bounds_vector.wktlist.append(bounds_wkt)
+        bounds_vector.spref_str = self.metadata['spref']
         bounds_vector.nfeat = 1
         bounds_vector.type = 3
         bounds_vector.name = os.path.basename(self.filename).split('.')[0] + '_bounds'
         bounds_vector.spref = osr.SpatialReference()
-        res = bounds_vector.spref.ImportFromWkt(bounds_vector.crs_string)
+        res = bounds_vector.spref.ImportFromWkt(bounds_vector.spref_str)
 
         memory_driver = ogr.GetDriverByName('Memory')
-        bounds_vector.data_source = memory_driver.CreateDataSource('out')
-        bounds_vector.layer = bounds_vector.data_source.CreateLayer('image_bounds',
+        bounds_vector.datasource = memory_driver.CreateDataSource('out')
+        bounds_vector.layer = bounds_vector.datasource.CreateLayer('image_bounds',
                                                                     srs=bounds_vector.spref,
                                                                     geom_type=bounds_vector.type)
 
@@ -326,8 +326,8 @@ class Vector(object):
 
     def __init__(self,
                  filename=None,
-                 layer_index=0,
                  spref_str=None,
+                 layer_index=0,
                  geom_type=3,
                  in_memory=False,
                  verbose=False,
@@ -339,14 +339,17 @@ class Vector(object):
         """
 
         self.filename = filename
+        self.datasource = None
+
         self.features = list()
         self.attributes = list()
-        self.wkt_list = list()
-        self.data_source = None
+        self.wktlist = list()
+
         self.layer = None
         self.spref = None
-        self.crs_string = None
+        self.spref_str = None
         self.type = None
+
         self.name = 'Empty'
         self.nfeat = 0
         self.bounds = None
@@ -356,14 +359,14 @@ class Vector(object):
         if filename is not None and os.path.isfile(filename):
 
             # open vector file
-            self.data_source = ogr.Open(self.filename)
-            file_layer = self.data_source.GetLayerByIndex(layer_index)
+            self.datasource = ogr.Open(self.filename)
+            file_layer = self.datasource.GetLayerByIndex(layer_index)
 
             if in_memory:
                 out_driver = ogr.GetDriverByName('Memory')
                 out_datasource = out_driver.CreateDataSource('mem_source')
                 self.layer = out_datasource.CopyLayer(file_layer, 'mem_source')
-                self.data_source = out_datasource
+                self.datasource = out_datasource
                 file_layer = None
 
             else:
@@ -382,7 +385,7 @@ class Vector(object):
             else:
                 dest_spref = None
 
-            self.crs_string = self.spref.ExportToWkt()
+            self.spref_str = self.spref.ExportToWkt()
 
             # other layer metadata
             self.type = self.layer.GetGeomType()
@@ -485,7 +488,7 @@ class Vector(object):
 
                 self.attributes.append(all_items)
                 self.features.append(new_feat)
-                self.wkt_list.append(geom.ExportToWkt())
+                self.wktlist.append(geom.ExportToWkt())
                 feat_count += 1
 
                 feat = self.layer.GetNextFeature()
@@ -511,13 +514,13 @@ class Vector(object):
             if in_memory:
                 out_driver = ogr.GetDriverByName('Memory')
                 out_datasource = out_driver.CreateDataSource('mem_source')
-                self.data_source = out_datasource
+                self.datasource = out_datasource
                 self.type = geom_type
 
                 self.spref = osr.SpatialReference()
                 res = self.spref.ImportFromWkt(spref_str)
 
-                self.layer = self.data_source.CreateLayer('mem_layer',
+                self.layer = self.datasource.CreateLayer('mem_layer',
                                                           srs=self.spref,
                                                           geom_type=geom_type)
                 fid = ogr.FieldDefn('fid', ogr.OFTInteger)
@@ -531,8 +534,8 @@ class Vector(object):
     def __repr__(self):
         return "<Vector {} of type {} ".format(self.name,
                                                self.ogr_geom_type(self.type)) + \
-               "with {} feature(s) and {} attribute(s) >".format(str(self.nfeat),
-                                                                 str(len(self.fields)))
+               "with {} feature(s) and {} attribute(s)>".format(str(self.nfeat),
+                                                                str(len(self.fields)))
 
     @staticmethod
     def ogr_data_type(x):
@@ -655,7 +658,7 @@ class Vector(object):
 
         self.layer.CreateFeature(feat)
         self.features.append(feat)
-        self.wkt_list.append(geom.ExportToWkt())
+        self.wktlist.append(geom.ExportToWkt())
         if attr is not None:
             if primary_key is not None:
                 attr.update({primary_key: self.nfeat})
@@ -671,7 +674,7 @@ class Vector(object):
 
         """
         Method to merge two alike vectors. This method only works for vectors
-        that have same spref or crs_string, attribute keys, and geom types
+        that have same spref or spref_str, attribute keys, and geom types
         :param vector: Vector to merge in self
         :param remove: if the vector should be removed after merging
         :return: None
@@ -715,7 +718,7 @@ class Vector(object):
 
             out_vector = Vector()
 
-            out_vector.data_source = out_datasource
+            out_vector.datasource = out_datasource
             out_vector.mem_source = out_datasource
 
             return out_vector
@@ -746,8 +749,8 @@ class Vector(object):
 
             layer_defn = out_layer.GetLayerDefn()
 
-            if len(self.wkt_list) > 0:
-                for i, wkt_geom in enumerate(self.wkt_list):
+            if len(self.wktlist) > 0:
+                for i, wkt_geom in enumerate(self.wktlist):
                     geom = ogr.CreateGeometryFromWkt(wkt_geom)
                     feat = ogr.Feature(layer_defn)
                     feat.SetGeometry(geom)
@@ -816,8 +819,8 @@ class Vector(object):
 
             # relate memory vector source to Vector object
             out_vector.mem_source = temp_datasource
-            out_vector.data_source = temp_datasource
-            out_vector.wkt_list = list()
+            out_vector.datasource = temp_datasource
+            out_vector.wktlist = list()
 
             # update features and crs
             out_vector.nfeat = len(query_list)
@@ -854,7 +857,7 @@ class Vector(object):
                     temp_feature.SetField(name, attr_dict[name])
 
                 out_vector.features.append(temp_feature)
-                out_vector.wkt_list.append(temp_geom.ExportToWkt())
+                out_vector.wktlist.append(temp_geom.ExportToWkt())
 
                 # create new feature in output layer
                 temp_layer.CreateFeature(temp_feature)
@@ -907,7 +910,7 @@ class Vector(object):
                 raise ValueError("Destination spatial reference not specified")
 
         vector.spref = destination_spatial_ref
-        vector.crs_string = destination_spatial_ref.ExportToWkt()
+        vector.spref_str = destination_spatial_ref.ExportToWkt()
 
         # get source spatial reference from Spatial reference WKT string in self
         source_spatial_ref = self.spref
@@ -918,12 +921,12 @@ class Vector(object):
 
         # Create a memory layer
         memory_driver = ogr.GetDriverByName('Memory')
-        vector.data_source = memory_driver.CreateDataSource('out')
+        vector.datasource = memory_driver.CreateDataSource('out')
 
         # create a layer in memory
-        vector.layer = vector.data_source.CreateLayer('temp',
-                                                      srs=source_spatial_ref,
-                                                      geom_type=self.type)
+        vector.layer = vector.datasource.CreateLayer('temp',
+                                                     srs=source_spatial_ref,
+                                                     geom_type=self.type)
 
         # initialize new feature list
         vector.features = list()
@@ -942,7 +945,7 @@ class Vector(object):
         # layer definition with new fields
         temp_layer_definition = vector.layer.GetLayerDefn()
 
-        vector.wkt_list = list()
+        vector.wktlist = list()
         vector.attributes = self.attributes
 
         # convert each feature
@@ -952,7 +955,7 @@ class Vector(object):
             temp_geom = feat.GetGeometryRef()
             temp_geom.Transform(transform_tool)
 
-            vector.wkt_list.append(temp_geom.ExportToWkt())
+            vector.wktlist.append(temp_geom.ExportToWkt())
 
             # create new feature using geometry
             temp_feature = ogr.Feature(temp_layer_definition)
@@ -975,9 +978,9 @@ class Vector(object):
             self.layer = vector.layer
             self.features = vector.features
             self.fields = vector.fields
-            self.data_source = vector.data_source
-            self.wkt_list = vector.wkt_list
-            self.crs_string = vector.crs_string
+            self.datasource = vector.datasource
+            self.wktlist = vector.wktlist
+            self.spref_str = vector.spref_str
 
     @staticmethod
     def reproj_geom(geoms,
