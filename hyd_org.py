@@ -34,18 +34,18 @@ def find_tile(args):
 
 def find_intersecting(args):
     """
-    Method to find intersecting lakes
+    Method to find intersecting lakes with a list of geometries
     :param args: Arguments
-        (fid, geom_wkt, wkt_list)
+        (fid, geom_wkt, wktlist)
     :return: tuple
     """
 
-    fid, geom_wkt, wkt_list = args
+    fid, geom_wkt, wktlist = args
 
     geom = ogr.CreateGeometryFromWkt(geom_wkt).Buffer(buffer_dist)
 
     intersect_list = list()
-    for ii, lake_wkt in enumerate(wkt_list):
+    for ii, lake_wkt in enumerate(wktlist):
         temp_geom = ogr.CreateGeometryFromWkt(lake_wkt)
         if geom.Intersects(temp_geom.Buffer(buffer_dist)):
             intersect_list.append(ii)
@@ -56,6 +56,9 @@ def find_intersecting(args):
 def group_multi(in_list):
     """
     Method to group all numbers that occur together in any piece-wise-list manner
+
+    example: input [[2,4],[5,6,7,8,10],[3,9,12,4],[14,12],[99,100,101],[104,3],[405,455,456],[302,986,2]]
+    will be grouped to [[2, 3, 4, 9, 12, 14, 104, 302, 986],[5, 6, 7, 8, 10],[99, 100, 101],[405, 455, 456]]
     :param in_list: List of lists
     :return: list of lists
     """
@@ -124,7 +127,7 @@ if __name__ == '__main__':
     tile_vec = Vector(filename=tile_file,
                       verbose=False)
 
-    main_crs_str = tile_vec.crs_string
+    main_crs_str = tile_vec.spref_str
 
     print(tile_vec)
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
@@ -179,7 +182,7 @@ if __name__ == '__main__':
     ak_vec.layer.CreateField(filename_attr)
     ak_vec.layer.CreateField(id_attr)
     ak_vec.fields = ak_vec.fields + [filename_attr, id_attr]
-    ak_vec.crs_string = main_crs_str
+    ak_vec.spref_str = main_crs_str
 
     temp_vec = None
     geom_list = list()
@@ -189,8 +192,7 @@ if __name__ == '__main__':
     try:
         temp_vec = Vector(ak_file,
                           spref_str=main_crs_str,
-                          geom_type=Vector.ogr_geom_type('polygon'),
-                          feat_limit=200)
+                          geom_type=Vector.ogr_geom_type('polygon'))
 
     except (AttributeError, RuntimeError):
         error_list.append('Error reading {}'.format(ak_file))
@@ -207,7 +209,7 @@ if __name__ == '__main__':
 
                 geom_list.append((str(geom_dict['OBJECTID']),
                                   geom.ExportToWkt(),
-                                  tile_vec.wkt_list,
+                                  tile_vec.wktlist,
                                   tile_vec.attributes))
 
                 ak_vec.add_feat(geom=geom,
@@ -244,9 +246,9 @@ if __name__ == '__main__':
     can_vec.layer.CreateField(filename_attr)
     can_vec.layer.CreateField(id_attr)
     can_vec.fields = can_vec.fields + [filename_attr, id_attr]
-    can_vec.crs_string = main_crs_str
+    can_vec.spref_str = main_crs_str
 
-    for i, can_file in enumerate(can_file_list[491:495]):
+    for i, can_file in enumerate(can_file_list):
         filename = File(can_file).basename.split('.shp')[0]
         geom_list = list()
 
@@ -258,8 +260,7 @@ if __name__ == '__main__':
         try:
             temp_vec = Vector(filename=can_file,
                               spref_str=main_crs_str,
-                              geom_type=Vector.ogr_geom_type('polygon'),
-                              feat_limit=200)
+                              geom_type=Vector.ogr_geom_type('polygon'))
 
         except (AttributeError, RuntimeError):
             error_list.append('Error reading {}'.format(can_file))
@@ -276,7 +277,7 @@ if __name__ == '__main__':
 
                     geom_list.append((str(geom_dict['NID']),
                                       geom.ExportToWkt(),
-                                      tile_vec.wkt_list,
+                                      tile_vec.wktlist,
                                       tile_vec.attributes))
 
                     can_vec.add_feat(geom=geom,
@@ -303,9 +304,9 @@ if __name__ == '__main__':
 
     print('----------------------------------------------------------------')
     print('Spatial ref strings: \n')
-    print(ak_vec.crs_string)
-    print(can_vec.crs_string)
-    print(tile_vec.crs_string)
+    print(ak_vec.spref_str)
+    print(can_vec.spref_str)
+    print(tile_vec.spref_str)
     print('----------------------------------------------------------------')
     print('Merge Canada and Alaska lakes...')
     sys.stdout.flush()
@@ -321,6 +322,7 @@ if __name__ == '__main__':
 
     all_tile_names = list(attr['grid_id'] for attr in tile_vec.attributes)
     print('Get all tile names...completed at {}'.format(Timer.display_time(time.time() - t)))
+    sys.stdout.flush()
 
     tile_dict = dict()
     for key, vals in can_vec.data.items():
@@ -329,6 +331,7 @@ if __name__ == '__main__':
                 tile_dict[val] = dict()
             tile_dict[val].update({key: dict()})
     print('Dictionary structure to store lakes by tile...completed at {}'.format(Timer.display_time(time.time() - t)))
+    sys.stdout.flush()
 
     feat_dict = dict()
     feat_count = 0
@@ -364,7 +367,7 @@ if __name__ == '__main__':
     feat_intersect_list = list([] for _ in range(0, nfeat))
 
     for tile_name in all_tile_names:
-        wkt_list = list()
+        wktlist = list()
         fid_list = list()
 
         if tile_name in tile_dict:
@@ -372,12 +375,12 @@ if __name__ == '__main__':
 
             for orig_id, geom_dict in tile_dict[tile_name].items():
                 fid_list.append(geom_dict['fid'])
-                wkt_list.append(geom_dict['geom'])
+                wktlist.append(geom_dict['geom'])
 
             geom_list = list((fid_list[ij],
                               geom_wkt,
-                              wkt_list)
-                             for ij, geom_wkt in enumerate(wkt_list))
+                              wktlist)
+                             for ij, geom_wkt in enumerate(wktlist))
 
             intersect_results = pool.map(find_intersecting,
                                          geom_list)
@@ -388,6 +391,7 @@ if __name__ == '__main__':
     feat_intersect_list = list(list(set(temp_list)) for temp_list in feat_intersect_list)
 
     print('Feature intersection list...completed at {}'.format(Timer.display_time(time.time() - t)))
+    sys.stdout.flush()
 
     single_geom_fids = list(i for i in range(0, nfeat) if len(feat_intersect_list[i]) == 1)
     single_features = list(feat_dict[i] for i in single_geom_fids)
@@ -395,7 +399,13 @@ if __name__ == '__main__':
     multi_geom_fids = list(i for i in range(0, nfeat) if len(feat_intersect_list[i]) > 1)
     multi_geom_lists_scattered = list(feat_intersect_list[fid] for fid in multi_geom_fids)
 
+    print('Starting grouping...')
+    print('Length of scattered list: {}'.format(str(len(multi_geom_lists_scattered))))
+    sys.stdout.flush()
+
     multi_geom_lists_grouped = group_multi(multi_geom_lists_scattered)
+
+    print('Length of grouped list: {}'.format(str(len(multi_geom_lists_grouped))))
 
     print('Grouping multi geometry lists...completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
@@ -462,7 +472,7 @@ if __name__ == '__main__':
         tile_lakes.layer.CreateField(area_attr)
 
         tile_lakes.fields = tile_lakes.fields + [filename_attr, id_attr, area_attr]
-        tile_lakes.crs_string = main_crs_str
+        tile_lakes.spref_str = main_crs_str
 
         if tile_name in tile_dict:
             for key, val in tile_dict[tile_name].items():
@@ -505,7 +515,7 @@ if __name__ == '__main__':
         multi_tile_lakes.layer.CreateField(tile_attr)
         multi_tile_lakes.fields.append(tile_attr)
 
-    multi_tile_lakes.crs_string = main_crs_str
+    multi_tile_lakes.spref_str = main_crs_str
 
     for key, attr in multi_tile_features.items():
         geom = ogr.CreateGeometryFromWkt(attr['geom'])
@@ -555,7 +565,7 @@ if __name__ == '__main__':
         all_lakes.layer.CreateField(tile_attr)
         all_lakes.fields.append(tile_attr)
 
-    all_lakes.crs_string = main_crs_str
+    all_lakes.spref_str = main_crs_str
 
     for key, attr in all_lakes_dict.items():
         geom = ogr.CreateGeometryFromWkt(attr['geom'])
