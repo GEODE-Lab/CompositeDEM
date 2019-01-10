@@ -376,6 +376,8 @@ if __name__ == '__main__':
     # create empty feature intersection list, empty list for each feature in the list
     feat_intersect_list = list([] for _ in range(0, nfeat))
 
+    tt = time.time()
+
     # loop through the list of tiles by tile names
     for tile_name in all_tile_names:
         wktlist = list()
@@ -383,7 +385,6 @@ if __name__ == '__main__':
 
         # if tile exists in the tile dictionary, then make a list of all geometries in it
         if tile_name in tile_dict:
-            print('Finding intersecting features in tile {}'.format(tile_name))
 
             # get all geometries in the tile
             for orig_id, geom_dict in tile_dict[tile_name].items():
@@ -406,6 +407,12 @@ if __name__ == '__main__':
             # in the feature intersection list
             for fid, feat_intersects in intersect_results:
                 feat_intersect_list[fid] = feat_intersect_list[fid] + list(fid_list[ii] for ii in feat_intersects)
+
+            print('Completed intersecting/touching features in tile {} in {}'.format(tile_name,
+                                                                                     Timer.display_time(time.time()
+                                                                                                        - tt)))
+            tt = time.time()
+            sys.stdout.flush()
 
     # remove duplicates in each feature intersection list
     feat_intersect_list = list(list(set(temp_list)) for temp_list in feat_intersect_list)
