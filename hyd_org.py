@@ -248,6 +248,7 @@ if __name__ == '__main__':
     can_vec.fields = can_vec.fields + [filename_attr, id_attr]
     can_vec.spref_str = main_crs_str
 
+    # loop through each file in the list
     for i, can_file in enumerate(can_file_list):
         filename = File(can_file).basename.split('.shp')[0]
         geom_list = list()
@@ -258,6 +259,7 @@ if __name__ == '__main__':
         temp_vec = None
 
         try:
+            # read each file as vector
             temp_vec = Vector(filename=can_file,
                               spref_str=main_crs_str,
                               geom_type=Vector.ogr_geom_type('polygon'))
@@ -270,6 +272,7 @@ if __name__ == '__main__':
             if temp_vec.bounds.Intersects(above_geom):
                 print(temp_vec)
 
+                # loop through each feature in the vector
                 geom_list = list()
                 for feat in temp_vec.features:
                     geom = feat.GetGeometryRef()
@@ -284,6 +287,7 @@ if __name__ == '__main__':
                                      attr={'filename': filename,
                                            'orig_id': geom_dict['NID']})
 
+                # find the intersecting tiles for each feature
                 results = pool.map(find_tile,
                                    geom_list)
 
@@ -324,6 +328,7 @@ if __name__ == '__main__':
     print('Get all tile names...completed at {}'.format(Timer.display_time(time.time() - t)))
     sys.stdout.flush()
 
+    # make a dictionary of all tiles as keys, and with values as dictionary of geometries
     tile_dict = dict()
     for key, vals in can_vec.data.items():
         for val in vals:
@@ -333,6 +338,7 @@ if __name__ == '__main__':
     print('Dictionary structure to store lakes by tile...completed at {}'.format(Timer.display_time(time.time() - t)))
     sys.stdout.flush()
 
+    # dictionary of all features
     feat_dict = dict()
     feat_count = 0
     for feat in can_vec.features:
@@ -340,16 +346,19 @@ if __name__ == '__main__':
         orig_id = feat.items()['orig_id']
         area = geom.GetArea()
 
+        # get list of tile IDs that the geometry intersects
         tile_ids = can_vec.data[orig_id]
 
         if len(tile_ids) > 0:
             fid = feat_count
             # print('ID: {} Area: {} Tiles: {}'.format(str(fid), str(area), ','.join(tile_ids)))
 
+            # add geometries in the geometry dictionary nested in tile dictionary
             for tile_id in tile_ids:
                 tile_dict[tile_id][orig_id].update({'geom': geom.ExportToWkt(),
                                                     'fid': fid})
 
+            # update the dictionary of all features with the dictionary
             feat_dict.update({fid: {'geom': geom.ExportToWkt(),
                                     'orig_id': orig_id,
                                     'filename': filename,
@@ -364,38 +373,51 @@ if __name__ == '__main__':
     nfeat = len(feat_dict)
     can_vec = None
 
+    # create empty feature intersection list, empty list for each feature in the list
     feat_intersect_list = list([] for _ in range(0, nfeat))
 
+    # loop through the list of tiles by tile names
     for tile_name in all_tile_names:
         wktlist = list()
         fid_list = list()
 
+        # if tile exists in the tile dictionary, then make a list of all geometries in it
         if tile_name in tile_dict:
             print('Finding intersecting features in tile {}'.format(tile_name))
 
+            # get all geometries in the tile
             for orig_id, geom_dict in tile_dict[tile_name].items():
                 fid_list.append(geom_dict['fid'])
                 wktlist.append(geom_dict['geom'])
 
+            # make list of all geometries in the tile, and include
+            # all their fid(s) from the feature list
             geom_list = list((fid_list[ij],
                               geom_wkt,
                               wktlist)
                              for ij, geom_wkt in enumerate(wktlist))
 
+            # find all the intersecting/touching geometries
+            # in the tile list using multi processing
             intersect_results = pool.map(find_intersecting,
                                          geom_list)
 
+            # add the intersection results to each feature
+            # in the feature intersection list
             for fid, feat_intersects in intersect_results:
                 feat_intersect_list[fid] = feat_intersect_list[fid] + list(fid_list[ii] for ii in feat_intersects)
 
+    # remove duplicates in each feature intersection list
     feat_intersect_list = list(list(set(temp_list)) for temp_list in feat_intersect_list)
 
     print('Feature intersection list...completed at {}'.format(Timer.display_time(time.time() - t)))
     sys.stdout.flush()
 
+    # find all the geometries that do not intersect in the feature intersection list
     single_geom_fids = list(i for i in range(0, nfeat) if len(feat_intersect_list[i]) == 1)
     single_features = list(feat_dict[i] for i in single_geom_fids)
 
+    # find features that intersect/touch other geometries
     multi_geom_fids = list(i for i in range(0, nfeat) if len(feat_intersect_list[i]) > 1)
     multi_geom_lists_scattered = list(feat_intersect_list[fid] for fid in multi_geom_fids)
 
@@ -403,6 +425,7 @@ if __name__ == '__main__':
     print('Length of scattered list: {}'.format(str(len(multi_geom_lists_scattered))))
     sys.stdout.flush()
 
+    # group all the fid(s) that occur together anywhere
     multi_geom_lists_grouped = group_multi(multi_geom_lists_scattered)
 
     print('Length of grouped list: {}'.format(str(len(multi_geom_lists_grouped))))
@@ -411,22 +434,31 @@ if __name__ == '__main__':
     print('----------------------------------------------------------------')
     sys.stdout.flush()
 
+    # loop through all the features that intersect/touch
+    # and dissolve them
     multi_features = list()
     for multi_list in multi_geom_lists_grouped:
+
+        # dissolved feature is named after
+        # the feature with the largest area
         features = sorted(list(feat_dict[i] for i in multi_list),
                           key=lambda k: k['area'],
                           reverse=True)
         feat_id = features[0]['orig_id']
         feat_filename = features[0]['filename']
 
+        # create empty multi geometry
         multi_geom = ogr.Geometry(ogr.wkbMultiPolygon)
 
+        # add features
         tiles = list()
         for feat in features:
             geom = ogr.CreateGeometryFromWkt(feat['geom'])
             multi_geom.AddGeometryDirectly(geom.Buffer(buffer_dist))
             tiles = tiles + feat['tiles']
 
+        # list of tiles that the dissolved feature intersects
+        # is the union of the intersectino tile lists of all constituent features
         tiles = list(set(tiles))
 
         grp_geom = multi_geom.UnionCascaded()
