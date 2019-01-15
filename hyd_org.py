@@ -379,7 +379,7 @@ if __name__ == '__main__':
     tt = time.time()
 
     # loop through the list of tiles by tile names
-    for tile_name in all_tile_names:
+    for j, tile_name in enumerate(all_tile_names):
         wktlist = list()
         fid_list = list()
 
@@ -408,9 +408,12 @@ if __name__ == '__main__':
             for fid, feat_intersects in intersect_results:
                 feat_intersect_list[fid] = feat_intersect_list[fid] + list(fid_list[ii] for ii in feat_intersects)
 
-            print('Completed intersecting/touching features in tile {} in {}'.format(tile_name,
-                                                                                     Timer.display_time(time.time()
-                                                                                                        - tt)))
+            time_taken = Timer.display_time(time.time() - tt)
+
+            print('Completed intersecting/touching features in tile {} : {} of {} in {}'.format(tile_name,
+                                                                                                str(j+1),
+                                                                                                len(all_tile_names),
+                                                                                                time_taken))
             tt = time.time()
             sys.stdout.flush()
 
