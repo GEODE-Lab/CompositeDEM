@@ -1,4 +1,5 @@
 from scipy.interpolate import interp1d
+from geosoup import Raster
 import numpy as np
 import json
 
@@ -268,16 +269,47 @@ class Edge(object):
 
         edge_dict['n'] = self.nodata
 
-        return edge_dict
+        self.edges = edge_dict
 
 
-class Tile(Edge, Layer):
+class Tile(Raster, Edge, Layer):
 
-    def __init__(self):
-        pass
+    """
+    Class to amalgamate properties and methods of Raster, Edge, and Layer classes
+    """
+
+    def __init__(self,
+                 name,
+                 edgefile=None,
+                 nodata=None):
+        """
+        Instantiate Tile class
+        :param name: Name of the Tile or filepath
+        :param edgefile: filepath of edges file
+        :param nodata: No data value to use for voids
+        """
+
+        Raster.__init__(self,
+                        name)
+        self.initialize(get_array=True)
+
+        Edge.__init__(self,
+                      filename=edgefile,
+                      nodata=nodata)
+
+        if edgefile is not None:
+            Edge.load(self,
+                      filename=edgefile)
+        else:
+            Edge.extract(self,
+                         self.array[0, :, :])
+
+        Layer.__init__(self,
+                       array=self.array,
+                       nodata=nodata)
 
 
-class TileGrid(object):
+class TileGrid(Tile):
 
     def __init__(self):
         pass
