@@ -403,12 +403,10 @@ class TileGrid(object):
         self.grid_sizex = round(float(self.extent[1] - self.extent[0]) / float(self.tile_sizex))
         self.grid_sizey = round(float(self.extent[3] - self.extent[2]) / float(self.tile_sizey))
 
-    def make_grid(self,
-                  _return_=False):
+    def make_grid(self):
 
         """
         Method to make a Tile grid object that will house all the Tile objects assigned to it
-        :param _return_: If the extent values should be returned. If False None is returned
         :return: TileGrid object
         """
 
