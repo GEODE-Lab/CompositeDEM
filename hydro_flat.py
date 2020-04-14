@@ -1,6 +1,20 @@
 import sys
 import osr
-from common import Raster, Vector
+from CompositeDEM import Raster, Vector
+
+'''
+Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
+
+Script syntax: 
+
+python hydro_flat.py [DEM raster file] [DEM raster output file] [lakes shape file] [percentile clip] [min pixels]
+
+percentile clip: Percentile value for final elevation of flat surface
+min pixels: Minimum number of raster pixels inside a feature below which no flattening is desired
+
+example:
+hydro_flat.py "/temp/dem/astgdem.tif" "/temp/dem/astgdem_hydro_flattened.tif" "/temp/dem/lakes/lakes.shp" 10
+'''
 
 
 def main(raster_name,
@@ -51,11 +65,6 @@ def main(raster_name,
 
 
 if __name__ == '__main__':
-    '''
-    example:
-    hydro_flat.py "/temp/dem/astgdem_nad83_cgrid1_lzw.tif" "/temp/dem/astgdem_nad83_cgrid1_lzw_hyd_flat.tif"
-    "/temp/dem/lakes/lakes.shp" 10
-    '''
 
     raster_file, raster_out_file, hydro_shape_file = sys.argv[1:4]
 
@@ -69,6 +78,6 @@ if __name__ == '__main__':
     else:
         min_pixels = 25  # default
 
-    print('\nHydro-flattening...\n')
+    print('\nHydro-flattening - {}\n'.format(raster_file))
     main(raster_file, raster_out_file, hydro_shape_file, percentile, min_pixels)
     print('\n----------------------------------------------\n Done!\n')
