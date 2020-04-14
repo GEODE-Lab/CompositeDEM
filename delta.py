@@ -335,8 +335,8 @@ class Tile(Raster, Edge, Layer):
 class TileGrid(object):
 
     """
-    Class to store and manipulate 2D grid of tiles
-    This class assumes that all tiles are
+    Class to store and manipulate 2D grid of Tile objects.
+    This class assumes that all Tile objects are
     in the same spatial reference system and have
     the same dimensions.
     """
@@ -365,7 +365,7 @@ class TileGrid(object):
 
     def get_tile_bounds(self):
         """
-        Method to calculate bounds and centroids of all tiles in the list
+        Method to calculate bounds and centroids of all Tiles in the list
         :return:
         """
         if (self.tiles is not None) and (len(self.tiles) > 0):
@@ -387,8 +387,8 @@ class TileGrid(object):
 
     def get_extent(self):
         """
-        Method to get spatial extent of tiles. This method assumes
-        that all tiles are in the same spatial reference system.
+        Method to get spatial extent of TileGrid object. This method assumes
+        that all Tiles are in the same spatial reference system.
         :return: [xmin, xmax, ymin, ymax]
         """
         self.get_tile_bounds()
@@ -406,8 +406,9 @@ class TileGrid(object):
     def make_grid(self):
 
         """
-        Method to make a Tile grid object that will house all the Tile objects assigned to it
-        :return: TileGrid object
+        Method to make grids (list of lists) and populate them with Tile objects
+        retaining the spatial arrangement of the Tile objects
+        :return: None
         """
 
         self.get_extent()
