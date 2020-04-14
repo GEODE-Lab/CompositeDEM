@@ -1,5 +1,5 @@
 from scipy.interpolate import interp1d
-from geosoup import Raster, Vector, Opt, Handler
+from geosoup import Raster
 import numpy as np
 import json
 
@@ -352,7 +352,6 @@ class TileGrid(object):
         self.grid_extent = None  # xmin, xmax, ymin, ymax spatial extent of the grid
         self.grid_sizex = None  # Number of Tile "cells" along x
         self.grid_sizey = None  # Number of Tile "cells" along y
-
 
     def get_tile_bounds(self):
         """
