@@ -1,5 +1,5 @@
 from scipy.interpolate import interp1d
-from geosoup import Raster, Vector, Opt
+from geosoup import Raster, Vector, Opt, Handler
 import numpy as np
 import json
 
@@ -179,6 +179,9 @@ class Edge(object):
         self.filename = filename
         self.nodata = nodata
 
+    def __repr__(self):
+        return '<Edge object {}>'.format('-MEM-' if self.filename is None else self.filename)
+
     def load(self,
              filename=None):
         """
@@ -218,8 +221,8 @@ class Edge(object):
     def get_nearest_loc_val(arr,
                             nodata):
         """
-        function to get nearest located non nodata value and its location
-        for two ends of a 1D array
+        function to get nearest located non nodata value and
+        its location for a 1D array
         :param arr: 1D array
         :param nodata: no data value
         :return: [array_begin_value, array_begin_value_location,
@@ -279,13 +282,15 @@ class Edge(object):
 class Tile(Raster, Edge, Layer):
 
     """
-    Class to amalgamate properties and methods of Raster, Edge, and Layer classes
+    Class to amalgamate properties and methods of
+    Raster, Edge, and Layer classes into a Tile object
     """
 
     def __init__(self,
                  name,
                  edgefile=None,
-                 nodata=None):
+                 nodata=None,
+                 get_array=True):
         """
         Instantiate Tile class
         :param name: Name of the Tile or filepath
@@ -295,7 +300,7 @@ class Tile(Raster, Edge, Layer):
 
         Raster.__init__(self,
                         name)
-        self.initialize(get_array=True)
+        self.initialize(get_array=get_array)
 
         Edge.__init__(self,
                       filename=edgefile,
@@ -304,32 +309,23 @@ class Tile(Raster, Edge, Layer):
         if edgefile is not None:
             Edge.load(self,
                       filename=edgefile)
-        else:
+        elif get_array:
             Edge.extract(self,
                          self.array[0, :, :])
 
-        Layer.__init__(self,
-                       array=self.array,
-                       nodata=nodata)
+            Layer.__init__(self,
+                           array=self.array,
+                           nodata=nodata)
 
-    def centroid(self,
-                 use_nodatavalue=False):
-        """
-        Method to return centroid of the Raster object based on its boundary
-        :param use_nodatavalue: Boolean flag to calculate the centroid
-                            based on the valid pixel boundary
-        """
-        bounds = self.get_bounds(use_nodatavalue=use_nodatavalue,
-                                 xy_coordinates=False)
+        # geometric properties of the Tile object:
+        # bounds: (xmin, xmax, ymin, ymax) and centroid (x, y)
+        self.bounds = self.get_bounds(xy_coordinates=False)
+        self.centroid = (float(self.bounds[0] + self.bounds[1]) / 2.0,
+                         float(self.bounds[2] + self.bounds[3]) / 2.0)
 
-        if use_nodatavalue:
-            bounds_geom = Vector.get_osgeo_geom(bounds)
-            centroid_geom = bounds_geom.Centroid()
-            return centroid_geom.GetPoint()[0:2]
-
-        else:
-            bounds = self.get_bounds()
-            return float(bounds[0] + bounds[1]) / 2.0, float(bounds[2] + bounds[3]) / 2.0
+        # sizes of Tile along x and y in spatial reference units
+        self.sizex = self.bounds[1] - self.bounds[0]
+        self.sizey = self.bounds[3] - self.bounds[2]
 
 
 class TileGrid(object):
@@ -344,43 +340,33 @@ class TileGrid(object):
     def __init__(self,
                  tiles=None):
 
-        self.tiles = tiles
-        self.ntiles = len(tiles)
+        self.tiles = tiles  # list of Tile objects
+        self.ntiles = len(tiles)  # number of tiles
 
-        self.centroids = None
-        self.tile_bounds = None
-        self.tile_sizex = None
-        self.tile_sizey = None
+        self.tile_bounds = None  # list of tile bounds
+        self.tile_centroids = None  # list of tile centroids
 
-        self.grid = None
-        self.extent = None
+        self.grid = None  # list of list of Tile objects
+        self.grid_index = None  # number of tiles in each grid "cell"
 
-        self.grid_sizex = None
-        self.grid_sizey = None
-        self.grid_block = None
-        self.grid_tiles = None
+        self.grid_extent = None  # xmin, xmax, ymin, ymax spatial extent of the grid
+        self.grid_sizex = None  # Number of Tile "cells" along x
+        self.grid_sizey = None  # Number of Tile "cells" along y
 
-        self.grid_check_geomx = None
-        self.grid_check_geomy = None
 
     def get_tile_bounds(self):
         """
-        Method to calculate bounds and centroids of all Tiles in the list
+        Method to assign bounds and centroids of all Tiles in the list
+        to the properties tile_bounds and tile_centroids respectively
         :return:
         """
         if (self.tiles is not None) and (len(self.tiles) > 0):
 
             # ntiles x 4 array of [xmin, xmax, ymin, ymax]
-            self.tile_bounds = np.array(list(tile.get_bounds(xy_coordinates=False) for tile in self.tiles))
+            self.tile_bounds = np.array(list(tile.bounds for tile in self.tiles))
 
             # ntiles x 2 array of [centroidX, centroidY]
-            self.centroids = np.apply_along_axis(lambda tile_extent: [np.sum(tile_extent[0:2]) / 2.0,
-                                                                      np.sum(tile_extent[2:4]) / 2.0],
-                                                 1, self.tile_bounds)
-
-            # get tile size from first tile in the list
-            self.tile_sizex = self.tile_bounds[0][1] - self.tile_bounds[0][0]
-            self.tile_sizey = self.tile_bounds[0][3] - self.tile_bounds[0][2]
+            self.tile_centroids = np.array(list(tile.centroid for tile in self.tiles))
 
         else:
             raise ValueError("Tile list is empty")
@@ -394,14 +380,14 @@ class TileGrid(object):
         self.get_tile_bounds()
 
         # get extent for the grid using extent of all tiles
-        self.extent = [np.min(self.tile_bounds[:, 0]),
-                       np.max(self.tile_bounds[:, 1]),
-                       np.min(self.tile_bounds[:, 2]),
-                       np.max(self.tile_bounds[:, 3])]
+        self.grid_extent = [np.min(self.tile_bounds[:, 0]),
+                            np.max(self.tile_bounds[:, 1]),
+                            np.min(self.tile_bounds[:, 2]),
+                            np.max(self.tile_bounds[:, 3])]
 
         # size of grid in spatial reference units
-        self.grid_sizex = round(float(self.extent[1] - self.extent[0]) / float(self.tile_sizex))
-        self.grid_sizey = round(float(self.extent[3] - self.extent[2]) / float(self.tile_sizey))
+        self.grid_sizex = round(float(self.grid_extent[1] - self.grid_extent[0]) / float(self.tiles[0].sizex))
+        self.grid_sizey = round(float(self.grid_extent[3] - self.grid_extent[2]) / float(self.tiles[0].sizey))
 
     def make_grid(self):
 
@@ -416,21 +402,27 @@ class TileGrid(object):
         # make empty list of lists for the grid
         self.grid = list(list(None for _ in range(self.grid_sizex)) for _ in range(self.grid_sizey))
 
+        # index the number of tiles at each location
+        self.grid_index = list(list(0 for _ in range(self.grid_sizex)) for _ in range(self.grid_sizey))
+
         # get x coords of grid lines
         end_y_coords = [0, self.grid_sizey]
-        interp_func_y = interp1d(end_y_coords, [self.extent[3], self.extent[2]])
+        interp_func_y = interp1d(end_y_coords, [self.grid_extent[3], self.grid_extent[2]])
         mid_y_coords = interp_func_y(list(range(1, self.grid_sizey)))
-        y_coord_list = [self.extent[2]] + mid_y_coords + [self.extent[3]]
+        y_coord_list = [self.grid_extent[2]] + mid_y_coords + [self.grid_extent[3]]
 
         # get y coords of grid lines
         end_x_coords = [0, self.grid_sizex]
-        interp_func_x = interp1d(end_x_coords, [self.extent[1], self.extent[0]])
+        interp_func_x = interp1d(end_x_coords, [self.grid_extent[1], self.grid_extent[0]])
         mid_x_coords = interp_func_x(list(range(1, self.grid_sizex)))
-        x_coord_list = [self.extent[0]] + mid_x_coords + [self.extent[1]]
+        x_coord_list = [self.grid_extent[0]] + mid_x_coords + [self.grid_extent[1]]
 
-        for tile_indx, centroid in enumerate(self.centroids.tolist()):
+        # populate tile grids
+        for tile_indx, centroid in enumerate(self.grid_extent.tolist()):
             for grid_x_indx in range(self.grid_sizex):
                 if x_coord_list[grid_x_indx] < centroid[0] < x_coord_list[grid_x_indx + 1]:
                     for grid_y_indx in range(self.grid_sizey):
                         if y_coord_list[grid_y_indx] < centroid[1] < y_coord_list[grid_y_indx + 1]:
                             self.grid[grid_y_indx][grid_x_indx] = self.tiles[tile_indx]
+                            self.grid_index[grid_y_indx][grid_x_indx] += 1
+
