@@ -4,29 +4,11 @@ import json
 import time
 import shutil
 import fnmatch
-import itertools
 import numpy as np
 from functools import wraps
-from osgeo import gdal, osr, gdal_array, ogr
+from osgeo import gdal, osr, ogr, gdal_array, gdalconst
 gdal.UseExceptions()
 ogr.UseExceptions()
-
-
-def _find_dict_index(list_of_dicts,
-                     key,
-                     value):
-    """
-    Method to find where a key value pair occurs in a list of dictionaries
-    :param list_of_dicts: List of dictionaries
-    :param key: Key to find
-    :param value: Value associated with the key
-    :return: index (int)
-    """
-    for i, i_dict in enumerate(list_of_dicts):
-        for k, v in i_dict.items():
-            if k == key:
-                if v == value:
-                    return i
 
 
 class Raster(object):
@@ -34,72 +16,131 @@ class Raster(object):
     Class for Raster .tif files
     """
     def __init__(self,
-                 filename=None):
+                 filename=None,
+                 datasource=None,
+                 get_array=False,
+                 offsets=None,
+                 band_order=None):
         """
         Constructor for class Raster
-        :param filename: Full file name of the Raster file with file path (e.g.: /scratch/user/raster_file.tif)
+        :param filename: Full file path of the Raster file (e.g.: /home/user/raster_file.tif)
+        :param datasource: GDAL dataset shadow object
+        :param get_array: If the Raster array should be extracted from file
+        :param offsets: array offsets in x, y coordinates (x_start, y_start, n_columns, n_rows)
+                        here,
+                            x_start = starting pixel x location
+                            y_start = starting pixel y location
+                            n_columns = number of columns to extract
+                            n_rows = number of rows to extract
+                        default: entire file extent
+        :param: Order of bands to be extracted. Bands can be repeated.
+                example: [0,1,2,3,...], default: all bands
+
+        Extracted array is 3 dimensional even if there is only one band: bands x rows x columns
         """
-        if filename is not None and os.path.isfile(filename):
+        if not hasattr(self, 'metadata'):
+            self.metadata = {'nbands': None,
+                             'nrows': None,
+                             'ncols': None,
+                             'bandnames': [],
+                             'datatype': None,
+                             'nodatavalue': None,
+                             'transform': None,
+                             'spref': None}
 
+        if datasource is not None:
+            self.datasource = datasource
             self.filename = filename
-            self.metadata = dict()
+        elif filename is not None and os.path.isfile(filename):
+            self.datasource = gdal.Open(filename)
+            self.filename = filename
+        else:
+            self.filename = filename
+            self.datasource = datasource
+            return
 
-            fileptr = gdal.Open(self.filename)
+        if band_order is None:
+            self.metadata['nbands'] = self.datasource.RasterCount
+            band_order = list(range(self.metadata['nbands']))
+        else:
+            self.metadata['nbands'] = len(band_order)
 
-            # update some metadata values
-            self.metadata['nbands'] = fileptr.RasterCount
-            self.metadata['nrows'] = fileptr.RasterYSize
-            self.metadata['ncols'] = fileptr.RasterXSize
+        if offsets is not None:
+            self.metadata['nrows'] = offsets[3]
+            self.metadata['ncols'] = offsets[2]
+            self.array_offsets = offsets
+        else:
+            self.metadata['nrows'] = self.datasource.RasterYSize
+            self.metadata['ncols'] = self.datasource.RasterXSize
+            self.array_offsets = (0, 0, self.metadata['ncols'], self.metadata['nrows'])
 
-            # get transform
-            self.metadata['transform'] = fileptr.GetGeoTransform()
-            self.metadata['spref'] = fileptr.GetProjectionRef()
+        if self.metadata['transform'] is None:
+            self.metadata['transform'] = self.datasource.GetGeoTransform()
 
-            # read raster as array
-            self.array = np.zeros((self.metadata['nbands'],
-                                   self.metadata['nrows'],
-                                   self.metadata['ncols']),
+        if self.metadata['spref'] is None:
+            self.metadata['spref'] = self.datasource.GetProjectionRef()
+
+        if get_array:
+            self.metadata['bandnames'] = []
+            self.array = np.zeros((len(band_order),
+                                   self.array_offsets[3],
+                                   self.array_offsets[2],
                                   gdal_array.
-                                  GDALTypeCodeToNumericTypeCode(fileptr.GetRasterBand(1).
-                                                                DataType))
+                                  GDALTypeCodeToNumericTypeCode(self.datasource.GetRasterBand(1).
+                                                                DataType)))
+        else:
+            self.array = None
 
-            self.metadata['bandname'] = list()
+        # loop through all bands
+        for ib in band_order:
+            temp_band = self.datasource.GetRasterBand(ib+1)
 
-            # loop through all bands
-            for i in range(0, self.metadata['nbands']):
-                temp_band = fileptr.GetRasterBand(i+1)
-
-                # get data type of first band
-                if i == 0:
+            # get data type of first band
+            if ib == 0:
+                if self.metadata['datatype'] is None:
                     self.metadata['datatype'] = temp_band.DataType
+                if self.metadata['nodatavalue'] is None:
                     self.metadata['nodatavalue'] = temp_band.GetNoDataValue()
 
-                # write raster to array
-                self.array[i, :, :] = temp_band.ReadAsArray()
-
-                # read band names
-                self.metadata['bandname'].append(temp_band.GetDescription())
-
-            fileptr = None
-
-            sys.stdout.write('\nInitialized Raster {} of shape {}x{}x{}'.format(os.path.basename(self.filename),
-                                                                                self.metadata['nbands'],
-                                                                                self.metadata['nrows'],
-                                                                                self.metadata['ncols']))
-        else:
-
-            self.filename = filename
-            self.metadata = dict()
-            self.array = np.empty(shape=[0, 0, 0])
-
-            sys.stdout.write('\nInitialized empty Raster')
+            if get_array:
+                self.array[ib, :, :] = temp_band.ReadAsArray(*self.array_offsets,
+                                                             resample_alg=gdalconst.GRA_NearestNeighbour)
+            # read band names
+            self.metadata['bandnames'].append(temp_band.GetDescription())
 
     def __repr__(self):
-        return "<Raster {} of shape {}x{}x{} at {}>".format(os.path.basename(self.filename),
-                                                            self.metadata['nbands'],
-                                                            self.metadata['nrows'],
-                                                            self.metadata['ncols'],
-                                                            hex(id(self)))
+        """
+        Method to return a string representation of the Raster object if any Metadata value exists
+        """
+        if any(list(val for _, val in self.metadata.items())):
+            return "<Raster {} of shape {}x{}x{} at {}>".format(os.path.basename(self.filename),
+                                                                str(self.metadata['nbands']),
+                                                                str(self.metadata['nrows']),
+                                                                str(self.metadata['ncols']),
+                                                                hex(id(self)))
+        else:
+            return "<Empty Raster object>"
+
+    def close(self):
+        """
+        Close the GDAL raster file
+        """
+        self.datasource = None
+
+    def read_array(self,
+                   offsets=None,
+                   band_order=None):
+        """
+        Method to read raster array with offsets and a specific band order
+        Extracted array is 3 dimensional even if there is only one band specified: bands x rows x columns
+        :param offsets: tuple or list - (xoffset, yoffset, xcount, ycount)
+        :param band_order: order of bands to read
+        """
+        self.__init__(filename=self.filename,
+                      datasource=self.datasource,
+                      get_array=True,
+                      offsets=offsets,
+                      band_order=band_order)
 
     def vector_extract(self,
                        vector,
@@ -215,10 +256,23 @@ class Raster(object):
 
         return extract_list
 
-    def get_bounds(self):
+    def get_bounds(self,
+                   bounds=False,
+                   bounds_coords=False,
+                   bounds_wkt=False,
+                   bounds_vector=True):
         """
-        Method to extract bounding rectangle for a raster as a Vector object
-        :return: Vector object
+        Method to extract boundary for a raster. This can be in the form of
+        1) bounds (xmin, xmax, ymin, ymax)
+        2) bound coords: list of closed ring polygon coords [(x1, y1), ...]
+        3) wkt string of closed ring polygon
+        4) Vector object
+
+        :param bounds: boolean flag, if this is true subsequent flags are ignored (default: False)
+        :param bounds_coords:boolean flag, if this is true subsequent flags are ignored (default: False)
+        :param bounds_wkt: boolean flag, if this is true subsequent flags are ignored (default: False)
+        :param bounds_vector: boolean flag (default: True)
+        :return: bounds or bound_coords or wkt or Vector object
         """
 
         mcx = self.metadata['transform'][0]
@@ -236,39 +290,49 @@ class Raster(object):
                        [mcx, mcy - nl * py],
                        [mcx, mcy]]
 
-        bounds_wkt = "POLYGON(({}))".format(', '.join(list(' '.join([str(x), str(y)]) for (x, y) in bounds_list)))
+        wkt = "POLYGON(({}))".format(', '.join(list(' '.join([str(x), str(y)]) for (x, y) in bounds_list)))
 
-        bounds_vector = Vector()
+        if bounds:
+            return [mcx, mcx + ns * px, mcy - nl * py, mcy]
 
-        bounds_vector.wktlist.append(bounds_wkt)
-        bounds_vector.spref_str = self.metadata['spref']
-        bounds_vector.nfeat = 1
-        bounds_vector.type = 3
-        bounds_vector.name = os.path.basename(self.filename).split('.')[0] + '_bounds'
-        bounds_vector.spref = osr.SpatialReference()
-        res = bounds_vector.spref.ImportFromWkt(bounds_vector.spref_str)
+        elif bounds_coords:
+            return bounds_list
 
-        memory_driver = ogr.GetDriverByName('Memory')
-        bounds_vector.datasource = memory_driver.CreateDataSource('out')
-        bounds_vector.layer = bounds_vector.datasource.CreateLayer('image_bounds',
-                                                                    srs=bounds_vector.spref,
-                                                                    geom_type=bounds_vector.type)
+        elif bounds_wkt:
+            return wkt
 
-        fielddefn = ogr.FieldDefn('fid', ogr.OFTInteger)
-        bounds_vector.fields.append(fielddefn)
+        elif bounds_vector:
 
-        res = bounds_vector.layer.CreateField(fielddefn)
+            vector = Vector()
+            vector.wktlist.append(wkt)
+            vector.spref_str = self.metadata['spref']
+            vector.nfeat = 1
+            vector.type = 3
+            vector.name = str(os.path.basename(self.filename).split('.')[0]) + '_bounds'
+            vector.spref = osr.SpatialReference()
+            res = vector.spref.ImportFromWkt(vector.spref_str)
 
-        layer_def = bounds_vector.layer.GetLayerDefn()
-        geom = ogr.CreateGeometryFromWkt(bounds_wkt)
-        feat = ogr.Feature(layer_def)
-        feat.SetGeometry(geom)
-        feat.SetField('fid', 0)
+            memory_driver = ogr.GetDriverByName('Memory')
+            vector.datasource = memory_driver.CreateDataSource('out')
+            vector.layer = vector.datasource.CreateLayer('image_bounds',
+                                                         srs=vector.spref,
+                                                         geom_type=vector.type)
 
-        bounds_vector.layer.CreateFeature(feat)
-        bounds_vector.features = [feat]
+            fielddefn = ogr.FieldDefn('fid', ogr.OFTInteger)
+            vector.fields.append(fielddefn)
 
-        return bounds_vector
+            res = vector.layer.CreateField(fielddefn)
+
+            layer_def = vector.layer.GetLayerDefn()
+            geom = ogr.CreateGeometryFromWkt(wkt)
+            feat = ogr.Feature(layer_def)
+            feat.SetGeometry(geom)
+            feat.SetField('fid', 0)
+
+            vector.layer.CreateFeature(feat)
+            vector.features = [feat]
+
+            return vector
 
     def write_raster(self,
                      outfile,
