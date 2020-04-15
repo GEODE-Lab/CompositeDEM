@@ -1,2 +1,7 @@
 
 *.pyc
+.idea/vcs.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/CompositeDEM.iml
