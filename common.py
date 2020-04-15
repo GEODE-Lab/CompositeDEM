@@ -65,20 +65,22 @@ class Raster(object):
         else:
             self.metadata['nbands'] = len(band_order)
 
+        self.metadata['transform'] = self.datasource.GetGeoTransform()
+
+        if self.metadata['spref'] is None:
+            self.metadata['spref'] = self.datasource.GetProjectionRef()
+
         if offsets is not None:
             self.metadata['nrows'] = offsets[3]
             self.metadata['ncols'] = offsets[2]
             self.array_offsets = offsets
+            self.metadata['transform'][0] = self.metadata['transform'][0] + offsets[0] * self.metadata['transform'][1]
+            self.metadata['transform'][3] = self.metadata['transform'][3] + offsets[1] * self.metadata['transform'][5]
+
         else:
             self.metadata['nrows'] = self.datasource.RasterYSize
             self.metadata['ncols'] = self.datasource.RasterXSize
             self.array_offsets = (0, 0, self.metadata['ncols'], self.metadata['nrows'])
-
-        if self.metadata['transform'] is None:
-            self.metadata['transform'] = self.datasource.GetGeoTransform()
-
-        if self.metadata['spref'] is None:
-            self.metadata['spref'] = self.datasource.GetProjectionRef()
 
         if get_array:
             self.metadata['bandnames'] = []
