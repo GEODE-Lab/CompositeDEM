@@ -1,6 +1,6 @@
 import sys
 import osr
-from CompositeDEM import Raster, Vector
+from common import Raster, Vector
 
 '''
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
@@ -34,15 +34,15 @@ def main(raster_name,
     """
 
     # initialize objects
-    raster = Raster(filename=raster_name)
+    raster = Raster(filename=raster_name,
+                    get_array=True)
     raster_spref = osr.SpatialReference()
     res = raster_spref.ImportFromWkt(raster.metadata['spref'])
 
     hydro_vector = Vector(filename=hydro_file)
 
-    raster_bounds = raster.get_bounds()
-    print('Raster bounds vector:')
-    print(raster_bounds)
+    raster_bounds = raster.get_bounds(bounds_vector=True)
+    print('Raster bounds vector: {}'.format(raster_bounds))
 
     # find intersecting tile features
     hydro_vector_reproj = hydro_vector.reproject(destination_spatial_ref=raster_spref,
