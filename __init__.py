@@ -1,4 +1,5 @@
-from common import Raster, Vector, File, Timer, _find_dict_index
+from tilegrid import Layer, Edge, Tile, TileGrid
+from common import Raster, Vector, File, Timer
 
 
 class FieldError(Exception):
