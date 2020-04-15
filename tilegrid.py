@@ -1,5 +1,5 @@
 from scipy.interpolate import interp1d
-from geosoup import Raster
+from common import Raster
 import numpy as np
 import json
 
@@ -19,13 +19,9 @@ class Layer(object):
         Class to hold numpy array, its edges and no data object
         :param array: numpy array (1D)
         :param edgey: The two edges of the array (nrows x 2) columns:
-                        1) left
-                        2) right
-
+                        1) left , 2) right
         :param edgex: The two edges of the array (2 x ncol) rows:
-                       1) top
-                       2) bottom
-
+                       1) top , 2) bottom
         :param nodata:
         """
 
@@ -166,8 +162,8 @@ class Edge(object):
                             't' : [top_edge_vals, top_edge_loc],
                             'n' : no_data_value
                         }
-                Here, all the edge_vals and the edge_locs are 1D list objects
-                all elements should be present. Absence of even one element makes the
+                Here, all the edge_vals and the edge_locs are 1D list objects.
+                All elements should be present. Absence of even one element makes the
                 dictionary incomplete and invalid. Unavailability of any element should be
                 indicated by -1.
 
@@ -287,20 +283,20 @@ class Tile(Raster, Edge, Layer):
     """
 
     def __init__(self,
-                 name,
+                 filename,
                  edgefile=None,
                  nodata=None,
                  get_array=True):
         """
         Instantiate Tile class
-        :param name: Name of the Tile or filepath
-        :param edgefile: filepath of edges file
+        :param filename: Tile filepath (usually a .tif file)
+        :param edgefile: filepath of .edge file
         :param nodata: No data value to use for voids
         """
 
         Raster.__init__(self,
-                        name)
-        self.initialize(get_array=get_array)
+                        filename,
+                        get_array)
 
         Edge.__init__(self,
                       filename=edgefile,
@@ -319,7 +315,7 @@ class Tile(Raster, Edge, Layer):
 
         # geometric properties of the Tile object:
         # bounds: (xmin, xmax, ymin, ymax) and centroid (x, y)
-        self.bounds = self.get_bounds(xy_coordinates=False)
+        self.bounds = self.get_bounds(bounds=True)
         self.centroid = (float(self.bounds[0] + self.bounds[1]) / 2.0,
                          float(self.bounds[2] + self.bounds[3]) / 2.0)
 
@@ -424,4 +420,64 @@ class TileGrid(object):
                         if y_coord_list[grid_y_indx] < centroid[1] < y_coord_list[grid_y_indx + 1]:
                             self.grid[grid_y_indx][grid_x_indx] = self.tiles[tile_indx]
                             self.grid_index[grid_y_indx][grid_x_indx] += 1
+
+    @staticmethod
+    def compare_edges(tile,
+                      next_tile,
+                      edge_axis=0,
+                      direction=0):
+
+        """
+        Method to compare and fill edge discontinuities (voids) that share the
+        edges of two tile objects to make interpolated surface over voids seamless
+        :param tile: Tile object
+        :param next_tile: Tile object adjacent to first tile object, touching one edge
+        :param edge_axis: Axis of edge alignment (default: 0)
+                          0 = x-axis (l or r edge),
+                          1 = y-axis (t or b edge)
+
+        :param direction: Direction of propagation (default: 0)
+                          for edge_axis = 0
+                          0 = left to right ('r' edge for tile, 'l' edge for next_tile)
+                          1 = right to left ('l' edge for tile, 'r' edge for next_tile)
+                          for edge_axis = 1
+                          0 = top to bottom ('b' edge for tile, 't' edge for next_tile)
+                          1 = bottom to top ('t' edge for tile, 'b' edge for next_tile)
+
+        :returns: tuple of tile objects
+        """
+
+        if edge_axis not in (0, 1) or direction not in (0, 1):
+            raise ValueError("Invalid edge axis or direction")
+
+        edge_list = [('r', 'l'), ('b', 't')]
+
+        if direction == 1:
+            tile, next_tile = next_tile, tile
+
+        size_list = [tile.metadata['ncols'], tile.metadata['nrows']]
+
+        edges = edge_list[edge_axis]
+        arr_size = size_list[edge_axis]
+
+        tile_edge, tile_edge_loc = tile.edges[edges[0]]
+        next_tile_edge, next_tile_edge_loc = next_tile.edges[edges[1]]
+
+        for i in range(len(tile_edge_loc)):
+            if not np.isnan(tile_edge_loc[i]) and not np.isnan(next_tile_edge_loc[i]):
+                if direction == 0:
+                    f = interp1d([tile_edge_loc[i] - arr_size, next_tile_edge_loc[i]],
+                                 [tile_edge[i], next_tile_edge[i]])
+                    tile_edge[i], next_tile_edge[i] = f(-1), f(0)
+                    tile_edge_loc[i], next_tile_edge_loc[i] = arr_size, 0
+
+        tile.edges[edges[0]] = tile_edge, tile_edge_loc
+        next_tile.edges[edges[1]] = next_tile_edge, next_tile_edge_loc
+
+        if direction == 1:
+            return next_tile, tile
+        else:
+            return tile, next_tile
+
+
 
