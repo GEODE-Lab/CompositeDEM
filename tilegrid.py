@@ -424,8 +424,7 @@ class TileGrid(object):
     @staticmethod
     def compare_edges(tile,
                       next_tile,
-                      edge_axis=0,
-                      direction=0):
+                      edge_axis=0):
 
         """
         Method to compare and fill edge discontinuities (voids) that share the
@@ -436,24 +435,13 @@ class TileGrid(object):
                           0 = x-axis (l or r edge),
                           1 = y-axis (t or b edge)
 
-        :param direction: Direction of propagation (default: 0)
-                          for edge_axis = 0
-                          0 = left to right ('r' edge for tile, 'l' edge for next_tile)
-                          1 = right to left ('l' edge for tile, 'r' edge for next_tile)
-                          for edge_axis = 1
-                          0 = top to bottom ('b' edge for tile, 't' edge for next_tile)
-                          1 = bottom to top ('t' edge for tile, 'b' edge for next_tile)
-
         :returns: tuple of tile objects
         """
 
-        if edge_axis not in (0, 1) or direction not in (0, 1):
-            raise ValueError("Invalid edge axis or direction")
+        if edge_axis not in (0, 1):
+            raise ValueError("Invalid edge axis")
 
         edge_list = [('r', 'l'), ('b', 't')]
-
-        if direction == 1:
-            tile, next_tile = next_tile, tile
 
         size_list = [tile.metadata['ncols'], tile.metadata['nrows']]
 
@@ -465,19 +453,15 @@ class TileGrid(object):
 
         for i in range(len(tile_edge_loc)):
             if not np.isnan(tile_edge_loc[i]) and not np.isnan(next_tile_edge_loc[i]):
-                if direction == 0:
-                    f = interp1d([tile_edge_loc[i] - arr_size, next_tile_edge_loc[i]],
-                                 [tile_edge[i], next_tile_edge[i]])
-                    tile_edge[i], next_tile_edge[i] = f(-1), f(0)
-                    tile_edge_loc[i], next_tile_edge_loc[i] = arr_size, 0
+                f = interp1d([tile_edge_loc[i] - arr_size, next_tile_edge_loc[i]],
+                             [tile_edge[i], next_tile_edge[i]])
+                tile_edge[i], next_tile_edge[i] = f(-1), f(0)
+                tile_edge_loc[i], next_tile_edge_loc[i] = arr_size, 0
 
         tile.edges[edges[0]] = tile_edge, tile_edge_loc
         next_tile.edges[edges[1]] = next_tile_edge, next_tile_edge_loc
 
-        if direction == 1:
-            return next_tile, tile
-        else:
-            return tile, next_tile
+        return tile, next_tile
 
 
 
