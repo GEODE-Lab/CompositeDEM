@@ -429,7 +429,7 @@ class TileGrid(object):
 
         """
         Method to compare and fill edge discontinuities (voids) that share the
-        edges of two tile objects to make interpolated surface over voids seamless
+        edges of two adjacent tile objects
         :param tile: Tile object
         :param next_tile: Tile object adjacent to first tile object, touching one edge
         :param edge_axis: Axis of edge alignment (default: 0)
