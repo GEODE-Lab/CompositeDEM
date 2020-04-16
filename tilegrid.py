@@ -1,6 +1,8 @@
 from scipy.interpolate import interp1d
 from common import Raster
 import numpy as np
+import itertools
+import operator
 import json
 
 
@@ -349,6 +351,30 @@ class TileGrid(object):
         self.grid_sizex = None  # Number of Tile "cells" along x
         self.grid_sizey = None  # Number of Tile "cells" along y
 
+    def __add__(self, other):
+        """
+        Method to add one TileGrid to another
+        """
+        pass
+
+    def __sub__(self, other):
+        """
+        Method to subtract one TileGrid from another
+        """
+        pass
+
+    def make_void_layers(self, other):
+        """
+        Method to prepare a TileGrid layer of voids only
+        """
+        pass
+
+    def apply_void_layers(self, other):
+        """
+        Method to apply the TileGrid layer of voids to self or another TileGrid object
+        """
+        pass
+
     def get_tile_bounds(self):
         """
         Method to assign bounds and centroids of all Tiles in the list
@@ -422,9 +448,9 @@ class TileGrid(object):
                             self.grid_index[grid_y_indx][grid_x_indx] += 1
 
     @staticmethod
-    def compare_edges(tile,
-                      next_tile,
-                      edge_axis=0):
+    def fill_adjacent_edges(tile,
+                            next_tile,
+                            edge_axis=0):
 
         """
         Method to compare and fill edge discontinuities (voids) that share the
@@ -463,5 +489,10 @@ class TileGrid(object):
 
         return tile, next_tile
 
-
-
+    def fill_multi_tile_voids(self,
+                              axis=0):
+        """
+        Method to fill voids across more than two tiles
+        :param axis: Axis along which the voids are to be filled
+        """
+        pass
