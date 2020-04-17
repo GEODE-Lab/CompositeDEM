@@ -9,18 +9,18 @@ The NASA ABoVE Composite DEM is an aggregation of publicly available digital ele
 `GMTED2010`
 
 # Contributors:  
-`Patrick Burns`  
-`Richard Massey`  
-`David Shean`  
-`Erik Husby`  
+Patrick Burns  
+Richard Massey  
+David Shean  
+Erik Husby  
 
 # Major packages:
 
-`Anaconda 3.4.1`
-`python 2.7.14`
-`gdal 2.2.3`
-`CentOS release 6.9 (Final) - Kernel: 2.6.32-696.18.7.el6.x86_64`
-`SLURM 17.11.3-2`
+`Anaconda 3.4.1`  
+`python 2.7.14`  
+`gdal 2.2.3`  
+`CentOS release 6.9 (Final) - Kernel: 2.6.32-696.18.7.el6.x86_64`  
+`SLURM 17.11.3-2`  
 
 
 # Resources
