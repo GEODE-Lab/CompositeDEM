@@ -5,7 +5,7 @@ The NASA ABoVE Composite DEM is an aggregation of publicly available digital ele
 `ALOS World v2.2 3D DEM`  
 `Shuttle Radar Topography Mission NASADEM`  
 `Canada DEM (CDEM)`  
-`ASTER Global DEM (GDEM) version 3` 
+`ASTER Global DEM (GDEM) version 3`  
 `GMTED2010`
 
 # Contributors:  
