@@ -1,6 +1,6 @@
 # NASA ABoVE 10m Composite DEM
 
-![](images/DEM.jpg)
+![](images/DEM.png)
 
 The NASA ABoVE Composite DEM is an aggregation of publicly available digital elevation datasets into a single Digital Elevation Model (DEM) that is free of voids for the NASA ABoVE project domain. Various data sources are prioritized based on quality and then stacked in that order so that voids may be filled. The source elevation datasets in order of priority are:
   
