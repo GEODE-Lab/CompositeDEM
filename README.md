@@ -25,6 +25,5 @@ Erik Husby
 
 # Resources
 
-`Northern Arizona University's computing cluster Monsoon`
-
+`Northern Arizona University's computing cluster Monsoon`  
 `NASA ABoVE Science Cloud`
