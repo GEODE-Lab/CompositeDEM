@@ -1,4 +1,4 @@
-# NASA ABoVE 10m Composite DEM
+## NASA ABoVE 10m Composite DEM
 
 ![](images/DEM.png)
 
@@ -12,14 +12,14 @@ The NASA ABoVE Composite DEM is an aggregation of publicly available digital ele
 `ASTER Global DEM (GDEM) version 3`  
 `GMTED2010`
 
-# Contributors:  
+### Contributors:  
 
 Patrick Burns  
 Richard Massey  
 David Shean  
 Erik Husby  
 
-# Major packages:
+### Major packages:
 
 `Anaconda 3.4.1`  
 `python 2.7.14`  
@@ -28,7 +28,7 @@ Erik Husby
 `SLURM 17.11.3-2`  
 
 
-# Resources
+### Resources
 
 `Northern Arizona University's computing cluster Monsoon`  
 `NASA ABoVE Science Cloud`
