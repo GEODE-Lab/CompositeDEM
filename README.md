@@ -1,19 +1,19 @@
 # NASA ABoVE 10m Composite DEM
-The NASA ABoVE Composite DEM is an aggregation of publicly available digital elevation datasets into a single Digital Elevation Model (DEM) that is free of voids for the NASA ABoVE project domain. 
-Various data sources are prioritized based on quality and then stacked in that order so that voids may be filled. The source elevation datasets in order of priority are:
-Alaska IFSAR (non-legacy)
-Arctic DEM release 7 mosaic tiles
-ALOS World v2.2 3D DEM
-Shuttle Radar Topography Mission NASADEM
-Canada DEM (CDEM)
-ASTER Global DEM (GDEM) version 3
-GMTED2010 
+The NASA ABoVE Composite DEM is an aggregation of publicly available digital elevation datasets into a single Digital Elevation Model (DEM) that is free of voids for the NASA ABoVE project domain.  
+Various data sources are prioritized based on quality and then stacked in that order so that voids may be filled. The source elevation datasets in order of priority are:  
+Alaska IFSAR (non-legacy)  
+Arctic DEM release 7 mosaic tiles  
+ALOS World v2.2 3D DEM  
+Shuttle Radar Topography Mission NASADEM  
+Canada DEM (CDEM)  
+ASTER Global DEM (GDEM) version 3  
+GMTED2010  
 
-# Contributors:
-Patrick Burns
-Richard Massey
-David Shean
-Erik Husby
+# Contributors:  
+Patrick Burns  
+Richard Massey  
+David Shean  
+Erik Husby  
 
 # Major packages:
 
