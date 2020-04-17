@@ -13,6 +13,7 @@ The NASA ABoVE Composite DEM is an aggregation of publicly available digital ele
 `GMTED2010`
 
 # Contributors:  
+
 Patrick Burns  
 Richard Massey  
 David Shean  
