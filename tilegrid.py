@@ -9,7 +9,7 @@ import json
 class Layer(object):
 
     """
-    Class to store and manipulate Raster Tile as a layer
+    Class to store and manipulate Raster Tile as a numpy array layer
     """
 
     def __init__(self,
@@ -18,7 +18,7 @@ class Layer(object):
                  edgey=None,
                  nodata=None):
         """
-        Class to hold numpy array, its edges and no data object
+        Instantiate class
         :param array: numpy array (1D)
         :param edgey: The two edges of the array (nrows x 2) columns:
                         1) left , 2) right
@@ -53,6 +53,18 @@ class Layer(object):
                                                   str(self.ncol))
 
     @staticmethod
+    def group_consecutive(arr):
+        """
+        Method to group consecutive elements into one sorted list
+        :param arr: List of numbers
+        :returns: List of lists
+        """
+        grouped_elements = []
+        for _, group in itertools.groupby(enumerate(sorted(arr)), key=lambda x: x[0] - x[1]):
+            grouped_elements.append(sorted(list(map(operator.itemgetter(1), group))))
+        return grouped_elements
+
+    @staticmethod
     def find_blocks(arr,
                     nodata=None):
         """
@@ -61,24 +73,17 @@ class Layer(object):
         :param nodata: no data value
         :return: List of tuples [(pixel_loc_before_void, pixel_loc_after_void), ]
         """
-        loc = np.msort(np.where(arr == nodata)[0])
 
-        if loc.shape[0] > 0:
-            arr_mask = arr.copy()
-            arr_mask = arr_mask * 0 + 1
-            arr_mask[loc] = 0
+        void_locs = np.msort(np.where(arr == nodata)[0])
+        grouped_locs = Layer.group_consecutive(void_locs.tolist())
 
-            first_jump = -1 if arr_mask[0] == 0 else 0
+        blocks = []
+        for group in grouped_locs:
+            if len(group) > 0:
+                blocks.append([group[0] - 1 if group[0] != 0 else -1,
+                               group[-1] + 1 if group[-1] != arr.shape[0] else -1])
 
-            arr_jumps = np.hstack([first_jump, arr_mask[1:] - arr_mask[:-1]])
-
-            jump_starts = (np.where(arr_jumps == -1)[0] - 1).tolist()
-            jump_ends = (np.where(arr_jumps == 1)[0]).tolist()
-
-            if len(jump_starts) != len(jump_ends):
-                jump_ends.append(-1)
-
-            return list(zip(jump_starts, jump_ends))
+        return blocks
 
     @staticmethod
     def fill_voids(arr,
@@ -495,4 +500,13 @@ class TileGrid(object):
         Method to fill voids across more than two tiles
         :param axis: Axis along which the voids are to be filled
         """
-        pass
+        for line_indx in self.grid_sizey:
+            tiles = self.grid[line_indx]
+
+        if axis == 0:
+            edge_key = 'l'
+        else:
+            edge_key = 't'
+
+
+
