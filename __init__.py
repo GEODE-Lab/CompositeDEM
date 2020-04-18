@@ -1,5 +1,6 @@
 from tilegrid import Layer, Edge, Tile, TileGrid
-from common import Raster, Vector, File, Timer
+from common import File, Timer, group_multi, group_consecutive
+from spatial import Raster, Vector
 
 
 class FieldError(Exception):
