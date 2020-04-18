@@ -1,8 +1,7 @@
 from scipy.interpolate import interp1d
-from common import Raster
+from common import group_consecutive
+from spatial import Raster
 import numpy as np
-import itertools
-import operator
 import json
 
 
@@ -53,18 +52,6 @@ class Layer(object):
                                                   str(self.ncol))
 
     @staticmethod
-    def group_consecutive(arr):
-        """
-        Method to group consecutive elements into one sorted list
-        :param arr: List of numbers
-        :returns: List of lists
-        """
-        grouped_elements = []
-        for _, group in itertools.groupby(enumerate(sorted(arr)), key=lambda x: x[0] - x[1]):
-            grouped_elements.append(sorted(list(map(operator.itemgetter(1), group))))
-        return grouped_elements
-
-    @staticmethod
     def find_blocks(arr,
                     nodata=None):
         """
@@ -75,7 +62,7 @@ class Layer(object):
         """
 
         void_locs = np.msort(np.where(arr == nodata)[0])
-        grouped_locs = Layer.group_consecutive(void_locs.tolist())
+        grouped_locs = group_consecutive(void_locs.tolist())
 
         blocks = []
         for group in grouped_locs:
@@ -358,24 +345,36 @@ class TileGrid(object):
         """
         Method to add one TileGrid to another
         """
+        # add all tile layers
+        # compute edges again for the output
+
         pass
 
     def __sub__(self, other):
         """
         Method to subtract one TileGrid from another
         """
+        # subtract all layers from corresponding layers
+        # re compute edges
+
         pass
 
     def make_void_layers(self, other):
         """
         Method to prepare a TileGrid layer of voids only
         """
+        # make a duplicate TileGrid
+        # read all tiles and find voids
+        # store only the voids in other layer
         pass
 
     def apply_void_layers(self, other):
         """
         Method to apply the TileGrid layer of voids to self or another TileGrid object
         """
+        # make void layer
+        # mask the void layer in current TileGrid
+
         pass
 
     def get_tile_bounds(self):
@@ -502,9 +501,17 @@ class TileGrid(object):
             tiles = self.grid[line_indx]
 
         if axis == 0:
-            edge_key = 'l'
+            edge_keys = ('l', 'r')
         else:
-            edge_key = 't'
+            edge_keys = ('t', 'b')
+
+        # look at all til edges in a row pixel by pixel
+        # find all the tiles that are adjacent/consecutive
+        # group adjacent tiles together and you have range of discontinuity
+        # fill edges by interpolation
+        # fill layers by interpolation
+        # repeat for other direction
+        # take mean of both directions
 
 
 
