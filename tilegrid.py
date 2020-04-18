@@ -97,8 +97,6 @@ class Layer(object):
         """
         out_arr = arr.copy()
 
-        print(blocks)
-
         if blocks is not None and len(blocks) > 0:
             for block in blocks:
                 if not any([(indx < 0) for indx in block]):
