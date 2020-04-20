@@ -1,14 +1,69 @@
 from osgeo import osr, ogr
-from common import Vector, Timer, File
 import multiprocessing as mp
+from sys import argv
+import pickle
 import json
 import sys
 import time
-import copy
+import gc
+from demLib.common import File, group_multi, Timer
+from demLib.spatial import Vector
+from data import above_coords
+from data import can_file_dir, tile_file, out_file, out_dir
+# pre_merge_border_vec, post_merge_border_vec, \
+# ak_file
 
 
 # buffer distance for geometry touching/intersecting check
 buffer_dist = 1  # meters
+
+
+def multi_feat_union(list_of_geom_indx_lists):
+    """
+    Function to loop through all the features that intersect/touch and dissolve them
+    :param list_of_geom_indx_lists: List of list of geometry indices
+    :returns list of dicts
+    """
+
+    dissolved_features = list()
+    for geom_indx_list in list_of_geom_indx_lists:
+
+        # dissolved feature is named after
+        # the feature with the largest area
+        features_to_dissolve = sorted(list(feat_dict[indx] for indx in geom_indx_list),
+                                      key=lambda k: k['area'],
+                                      reverse=True)
+
+        # use id and name of the first feature
+        feat_id = features_to_dissolve[0]['orig_id']
+        feat_filename = features_to_dissolve[0]['filename']
+
+        # create empty multi geometry
+        multi_geom = ogr.Geometry(ogr.wkbMultiPolygon)
+
+        # add features
+        tiles = list()
+        for feature in features_to_dissolve:
+            tmp_geom = ogr.CreateGeometryFromWkt(feature['geom'])
+            multi_geom.AddGeometryDirectly(tmp_geom.Buffer(buffer_dist))
+            tiles = tiles + feature['tiles']
+
+        # list of tiles that the dissolved feature intersects
+        # is the union of the intersectino tile lists of all constituent features
+        tiles = list(set(tiles))
+
+        # take geom union and calc area-
+        grp_geom = multi_geom.UnionCascaded()
+        grp_area = grp_geom.GetArea()
+
+        # add to list
+        dissolved_features.append({'geom': grp_geom.ExportToWkt(),
+                                   'filename': feat_filename,
+                                   'orig_id': feat_id,
+                                   'area': grp_area,
+                                   'tiles': tiles})
+
+    return dissolved_features
 
 
 def find_tile(args):
@@ -20,16 +75,16 @@ def find_tile(args):
     :return: tuple
     """
 
-    fid, feat_wkt, tile_wkts, tile_attrs = args
+    fead_id, feat_wkt, tile_wkts, tile_attributes = args
 
-    geom = ogr.CreateGeometryFromWkt(feat_wkt)
+    temp_geom = ogr.CreateGeometryFromWkt(feat_wkt)
 
-    tile_list = list()
-    for ti, tile_wkt in enumerate(tile_wkts):
-        if geom.Intersects(ogr.CreateGeometryFromWkt(tile_wkt)):
-            tile_list.append(tile_attrs[ti]['grid_id'])
+    list_of_tiles = list()
+    for tile_indx, tile_wkt in enumerate(tile_wkts):
+        if temp_geom.Intersects(ogr.CreateGeometryFromWkt(tile_wkt)):
+            list_of_tiles.append(tile_attributes[tile_indx]['grid_id'])
 
-    return fid, tile_list
+    return fead_id, list_of_tiles
 
 
 def find_intersecting(args):
@@ -40,73 +95,33 @@ def find_intersecting(args):
     :return: tuple
     """
 
-    fid, geom_wkt, wktlist = args
+    fead_id, geom_wkt, geom_wktlist = args
 
-    geom = ogr.CreateGeometryFromWkt(geom_wkt).Buffer(buffer_dist)
+    check_geom = ogr.CreateGeometryFromWkt(geom_wkt).Buffer(buffer_dist)
 
     intersect_list = list()
-    for ii, lake_wkt in enumerate(wktlist):
-        temp_geom = ogr.CreateGeometryFromWkt(lake_wkt)
-        if geom.Intersects(temp_geom.Buffer(buffer_dist)):
-            intersect_list.append(ii)
+    for indx, wkt in enumerate(geom_wktlist):
+        temp_geom = ogr.CreateGeometryFromWkt(wkt)
+        if check_geom.Intersects(temp_geom.Buffer(buffer_dist)):
+            intersect_list.append(indx)
 
-    return fid, intersect_list
-
-
-def group_multi(in_list):
-    """
-    Method to group all numbers that occur together in any piece-wise-list manner
-
-    example: input [[2,4],[5,6,7,8,10],[3,9,12,4],[14,12],[99,100,101],[104,3],[405,455,456],[302,986,2]]
-    will be grouped to [[2, 3, 4, 9, 12, 14, 104, 302, 986],[5, 6, 7, 8, 10],[99, 100, 101],[405, 455, 456]]
-    :param in_list: List of lists
-    :return: list of lists
-    """
-    out_list = copy.deepcopy(in_list)
-
-    for j, elem in enumerate(out_list[:-1]):
-        if len(elem) > 0:
-            i = 0
-            while i < len(elem):
-                for check_elem in out_list[(j+1):]:
-                    if len(check_elem) > 0:
-                        if elem[i] in check_elem:
-                            elem = elem + check_elem
-                            idx_gen = sorted(list(range(len(check_elem))),
-                                             reverse=True)
-                            for idx in idx_gen:
-                                check_elem.pop(idx)
-                i += 1
-            out_list[j] = sorted(list(set(elem)))
-
-    empty_idx = sorted(list(i for i, elem in enumerate(out_list) if len(elem) == 0),
-                       reverse=True)
-
-    for idx in empty_idx:
-        out_list.pop(idx)
-
-    return out_list
+    return fead_id, intersect_list
 
 
 if __name__ == '__main__':
+
     t = time.time()
 
-    size = mp.cpu_count()
+    # size = mp.cpu_count()
+    size = 4
     pool = mp.Pool(processes=size)
 
+    if len(argv) > 1:
+        script, ak_file, can_file_dir, tile_file, \
+            pre_merge_border_vec, post_merge_border_vec, \
+            out_file, out_dir = argv
+
     print('CPUs: {}'.format(str(size)))
-
-    # file paths
-    ak_file = "/projects/dem/hydroFlat/vectors/US_AK/3_merged/NHD_AK_WB_noGlac_diss_gte1000m2.shp"
-    can_file_dir = "/projects/dem/hydroFlat/vectors/CAN/2_shps/indiv/"
-    tile_file = "/projects/dem/hydroFlat/grids/PCS_NAD83_C_grid_ABoVE_intersection.shp"
-
-    pre_merge_border_vec = "/projects/dem/hydroFlat/vectors/pre_merge_border_lakes.shp"
-    post_merge_border_vec = "/projects/dem/hydroFlat/vectors/post_merge_border_lakes.shp"
-
-    out_file = "/projects/dem/hydroFlat/vectors/alaska_canada_lakes.json"
-
-    out_dir = "/projects/dem/hydroFlat/lakes/"
 
     error_list = list()
     border_list = list()
@@ -134,21 +149,6 @@ if __name__ == '__main__':
     print('----------------------------------------------------------------')
     print('processing ABoVE boundary vector.....')
 
-    above_coords = [[[-168.83884, 66.60503], [-168.66305, 64.72256], [-166.11423, 63.29787], [-168.83884, 60.31062],
-                     [-166.02634, 56.92698], [-166.64157, 54.70557], [-164.84625, 54.05535], [-157.94684, 54.69525],
-                     [-153.64020, 56.21509], [-151.17926, 57.48851], [-149.64118, 58.87838], [-147.67361, 61.37118],
-                     [-142.04861, 59.70736], [-135.67654, 58.69490], [-130.48731, 55.73262], [-124.82205, 50.42354],
-                     [-113.70389, 51.06312], [-112.07791, 53.29901], [-109.00174, 53.03557], [-105.16527, 52.53873],
-                     [-101.13553, 50.36751], [-98.007415, 49.77869], [-96.880859, 48.80976], [-94.983189, 48.94521],
-                     [-94.851353, 52.79709], [-88.238500, 56.92737], [-91.862463, 57.81702], [-93.775610, 59.60700],
-                     [-92.984594, 61.25472], [-87.315649, 64.30688], [-80.504125, 66.77919], [-79.976781, 68.59675],
-                     [-81.426977, 69.84364], [-84.547094, 70.00956], [-87.447485, 69.93430], [-91.094946, 70.77629],
-                     [-91.798071, 72.17192], [-89.688696, 73.86475], [-89.600805, 74.33426], [-92.940649, 74.61654],
-                     [-93.380102, 75.58784], [-94.874242, 75.69681], [-95.137914, 75.86949], [-96.719946, 76.56045],
-                     [-97.598852, 76.81343], [-97.618407, 77.32284], [-99.552001, 78.91297], [-103.94653, 79.75829],
-                     [-113.79028, 78.81110], [-124.33715, 76.52777], [-128.02856, 71.03224], [-136.99340, 69.67342],
-                     [-149.64965, 71.03224], [-158.08715, 71.65080], [-167.93090, 69.24910]]]
-
     # ABoVE vector in memory
     above_bounds_str = json.dumps({"type": "Polygon",
                                    "coordinates": above_coords})
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     print('processing ak vector.....')
 
     sys.stdout.flush()
-
+    '''
     ak_vec = Vector(in_memory=True,
                     spref_str=main_crs_str,
                     geom_type=Vector.ogr_geom_type('polygon'))
@@ -202,7 +202,6 @@ if __name__ == '__main__':
         if temp_vec.bounds.Intersects(above_geom):
             print(temp_vec)
 
-            geom_list = list()
             for feat in temp_vec.features:
                 geom = feat.GetGeometryRef()
                 geom_dict = feat.items()
@@ -226,10 +225,11 @@ if __name__ == '__main__':
         temp_vec = None
 
     sys.stdout.flush()
-
+    
     print(ak_vec)
     print('Completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
+    '''
     print('processing can vector.....')
 
     sys.stdout.flush()
@@ -288,10 +288,8 @@ if __name__ == '__main__':
                                            'orig_id': geom_dict['NID']})
 
                 # find the intersecting tiles for each feature
-                results = pool.map(find_tile,
-                                   geom_list)
-
-                can_vec.data.update(dict(results))
+                for result in pool.map(find_tile, geom_list):
+                    can_vec.data.update([result])
             else:
                 print('Vector is outside AOI')
 
@@ -305,7 +303,7 @@ if __name__ == '__main__':
 
     for err in error_list:
         print(err)
-
+    '''
     print('----------------------------------------------------------------')
     print('Spatial ref strings: \n')
     print(ak_vec.spref_str)
@@ -316,7 +314,7 @@ if __name__ == '__main__':
     sys.stdout.flush()
 
     can_vec.merge(ak_vec, True)
-
+    '''
     can_vec.name = 'ak_can_merged'
     print('Merged initial vector: {}'.format(can_vec))
 
@@ -345,13 +343,14 @@ if __name__ == '__main__':
         geom = feat.GetGeometryRef()
         orig_id = feat.items()['orig_id']
         area = geom.GetArea()
+        filename = feat.items()['filename']
 
         # get list of tile IDs that the geometry intersects
         tile_ids = can_vec.data[orig_id]
 
         if len(tile_ids) > 0:
             fid = feat_count
-            # print('ID: {} Area: {} Tiles: {}'.format(str(fid), str(area), ','.join(tile_ids)))
+            print('ID: {} Area: {} Tiles: {}'.format(str(fid), str(area), ','.join(tile_ids)))
 
             # add geometries in the geometry dictionary nested in tile dictionary
             for tile_id in tile_ids:
@@ -378,6 +377,8 @@ if __name__ == '__main__':
 
     tt = time.time()
 
+    gc.collect()
+
     # loop through the list of tiles by tile names
     for j, tile_name in enumerate(all_tile_names):
         wktlist = list()
@@ -400,13 +401,10 @@ if __name__ == '__main__':
 
             # find all the intersecting/touching geometries
             # in the tile list using multi processing
-            intersect_results = pool.map(find_intersecting,
-                                         geom_list)
-
             # add the intersection results to each feature
             # in the feature intersection list
-            for fid, feat_intersects in intersect_results:
-                feat_intersect_list[fid] = feat_intersect_list[fid] + list(fid_list[ii] for ii in feat_intersects)
+            for fid, feat_intersecting in pool.imap_unordered(find_intersecting, geom_list):
+                feat_intersect_list[fid] = feat_intersect_list[fid] + list(fid_list[ii] for ii in feat_intersecting)
 
             time_taken = Timer.display_time(time.time() - tt)
 
@@ -435,54 +433,45 @@ if __name__ == '__main__':
     print('Length of scattered list: {}'.format(str(len(multi_geom_lists_scattered))))
     sys.stdout.flush()
 
+    pickle_file = out_dir + 'temp_multi_geom_lists_scattered.pickle'
+
+    with open(pickle_file, 'wb') as fileptr:
+        pickle.dump(multi_geom_lists_scattered, fileptr)
+
+    """
+    # with open(pickle_file, 'rb') as fileptr:
+        pickle.load(multi_geom_lists_scattered, fileptr)
+    """
+    part_extra = len(multi_geom_lists_scattered) % size - 1
+    part_bins = list(range(0, len(multi_geom_lists_scattered), len(multi_geom_lists_scattered)//size))
+    part_bins[-1] += part_extra
+    part_tup_list = list((part_bins[i], part_bins[i+1]) for i in range(len(part_bins)-1))
+
+    print(part_tup_list)
+
+    multi_geom_lists_scattered_parts = list(list(multi_geom_lists_scattered[ii] for ii in range(jj, kk))
+                                            for jj, kk in part_tup_list if jj < kk)
+
+    multi_geom_lists_less_scattered = []
+    for elem in pool.imap(group_multi, multi_geom_lists_scattered_parts):
+        multi_geom_lists_less_scattered += elem
+
     # group all the fid(s) that occur together anywhere
-    multi_geom_lists_grouped = group_multi(multi_geom_lists_scattered)
+    multi_geom_lists_grouped = group_multi(multi_geom_lists_less_scattered)
 
     print('Length of grouped list: {}'.format(str(len(multi_geom_lists_grouped))))
 
     print('Grouping multi geometry lists...completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
     sys.stdout.flush()
+    gc.collect()
 
-    # loop through all the features that intersect/touch
-    # and dissolve them
-    multi_features = list()
-    for multi_list in multi_geom_lists_grouped:
-
-        # dissolved feature is named after
-        # the feature with the largest area
-        features = sorted(list(feat_dict[i] for i in multi_list),
-                          key=lambda k: k['area'],
-                          reverse=True)
-        feat_id = features[0]['orig_id']
-        feat_filename = features[0]['filename']
-
-        # create empty multi geometry
-        multi_geom = ogr.Geometry(ogr.wkbMultiPolygon)
-
-        # add features
-        tiles = list()
-        for feat in features:
-            geom = ogr.CreateGeometryFromWkt(feat['geom'])
-            multi_geom.AddGeometryDirectly(geom.Buffer(buffer_dist))
-            tiles = tiles + feat['tiles']
-
-        # list of tiles that the dissolved feature intersects
-        # is the union of the intersectino tile lists of all constituent features
-        tiles = list(set(tiles))
-
-        grp_geom = multi_geom.UnionCascaded()
-        area = grp_geom.GetArea()
-
-        multi_features.append({'geom': grp_geom.ExportToWkt(),
-                               'filename': feat_filename,
-                               'orig_id': feat_id,
-                               'area': area,
-                               'tiles': tiles})
+    multi_features = multi_feat_union(multi_geom_lists_grouped)
 
     print('Merging geometries...completed at {}'.format(Timer.display_time(time.time() - t)))
     print('----------------------------------------------------------------')
     sys.stdout.flush()
+    gc.collect()
 
     all_features = single_features + multi_features
 
