@@ -1,6 +1,6 @@
 import sys
 import osr
-from spatial import Raster, Vector
+from demLib.spatial import Raster, Vector
 
 '''
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
