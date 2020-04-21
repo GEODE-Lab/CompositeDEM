@@ -63,9 +63,9 @@ class Layer(object):
                     nodata=None):
         """
         Method to find blocks of no data value in a 1-D array
-        :param arr: Input 1-D array
+        :param arr: Input 1-D numpy array
         :param nodata: no data value
-        :return: List of tuples [(pixel_loc_before_void, pixel_loc_after_void), ]
+        :return: List of tuples [(pixel loc before void, pixel loc after void), ]
         """
 
         void_locs = np.msort(np.where(arr == nodata)[0])
@@ -74,29 +74,44 @@ class Layer(object):
         blocks = []
         for group in grouped_locs:
             if len(group) > 0:
-                blocks.append([group[0] - 1 if group[0] != 0 else -1,
-                               group[-1] + 1 if group[-1] != arr.shape[0] else -1])
+                blocks.append([group[0] - 1 if group[0] != 0 else nodata,
+                               group[-1] + 1 if group[-1] != arr.shape[0] else nodata])
 
         return blocks
 
     @staticmethod
     def fill_voids(arr,
-                   blocks=None):
+                   nodata=None,
+                   blocks=None,
+                   loc_array=None):
         """
         Method to fill a void in a 1-D array
         if none of the block indices are negative
-        :param arr: 1-D array
+        :param arr: 1-D numpy array
+        :param nodata: no data value
         :param blocks: List of tuples of block locations, output from find_blocks()
+        :param loc_array: Location of pixels
         :return: 1-D array
         """
         out_arr = arr.copy()
 
         if blocks is not None and len(blocks) > 0:
+
             for block in blocks:
-                if not any([(indx < 0) for indx in block]):
+
+                if not any([(indx == nodata) for indx in block]):
+                    if loc_array is not None:
+                        arr_block = loc_array[block]
+                    else:
+                        arr_block = block
+
                     y = out_arr[list(block)]
-                    f = interp1d(block, y)
-                    out_arr[np.arange(*block)] = f(np.arange(*block))
+                    f = interp1d(arr_block, y)
+
+                    if loc_array is not None:
+                        out_arr[np.arange(*block)] = f(loc_array[np.arange(*block)])
+                    else:
+                        out_arr[np.arange(*block)] = f(np.arange(*block))
 
         return out_arr
 
@@ -110,8 +125,26 @@ class Layer(object):
         :return: 1-D array
         """
         return Layer.fill_voids(arr,
-                                Layer.find_blocks(arr,
-                                                  nodata))
+                                nodata=nodata,
+                                blocks=Layer.find_blocks(arr,
+                                                         nodata))
+
+    @staticmethod
+    def fill_voids_by_loc(arr,
+                          nodata,
+                          loc_array=None):
+        """
+        Method to fill all voids in a 1D array
+        :param arr: 1-D array
+        :param nodata: No data value
+        :param loc_array: Location of pixels
+        :return: 1-D array
+        """
+        return Layer.fill_voids(arr,
+                                nodata=nodata,
+                                blocks=Layer.find_blocks(arr,
+                                                         nodata),
+                                loc_array=loc_array)
 
     def fill(self):
         """
@@ -350,8 +383,10 @@ class TileGrid(object):
         self.grid_index = None  # number of tiles in each grid "cell"
 
         self.grid_extent = None  # xmin, xmax, ymin, ymax spatial extent of the grid
-        self.grid_sizex = None  # Number of Tile "cells" along x
-        self.grid_sizey = None  # Number of Tile "cells" along y
+        self.grid_sizex = None  # Number of Tiles along x
+        self.grid_sizey = None  # Number of Tiles along y
+
+        self.nodata = None
 
     def __add__(self, other):
         """
@@ -397,7 +432,7 @@ class TileGrid(object):
         """
         if (self.tiles is not None) and (len(self.tiles) > 0):
 
-            # ntiles x 4 array of [xmin, xmax, ymin, ymax]
+            # ntiles x 4; array of [xmin, xmax, ymin, ymax]
             self.tile_bounds = np.array(list(tile.bounds for tile in self.tiles))
 
             # ntiles x 2 array of [centroidX, centroidY]
@@ -508,18 +543,48 @@ class TileGrid(object):
         :param axis: Axis along which the voids are to be filled
         """
 
-        if axis == 0:
-            grid_cols = self.grid_sizey
-            grid_rows = self.grid_sizex
-            edge_keys = ('t', 'b')
-        elif axis == 1:
-            grid_cols = self.grid_sizex
-            grird_rows = self.grid_sizey
-            edge_keys = ('l', 'r')
-        else:
-            raise AxisError
+        grid_cols = self.grid_sizex
+        grid_rows = self.grid_sizey
+        edge_keys = ['l', 'r']
 
-        
+        for row_indx in range(grid_rows):
+
+            arr_ncols = 2 * self.grid_sizex
+            arr_nrows = self.grid[row_indx, 0].shape[0]
+
+            # 2 layers for calculation:
+            # 0) edge vals, 1) cumul edge locs,
+            edge_arr = np.zeros((2, arr_nrows, arr_ncols), dtype=np.float32)
+
+            # 3 layers for identification and replacement:
+            # 0) edge locs, 1) grid col, 2) edge key
+            ident_arr = np.zeros((3, arr_nrows, arr_ncols), dtype=np.int64)
+
+            cumul_col = 0
+            cumul_size = 0
+
+            for col_indx in range(grid_cols):
+                tile = self.grid[row_indx, col_indx]
+
+                for key_indx, key in enumerate(edge_keys):
+
+                    # for calculation
+                    edge_arr[0, :, cumul_col] = np.array(tile.edges[key][0])
+                    edge_arr[1, :, cumul_col] = np.array([loc + cumul_size for loc in tile.edges[key][1]])
+
+                    # for identification
+                    ident_arr[0, :, cumul_col] = np.array(tile.edges[key][1])
+                    ident_arr[1, :, cumul_col] = np.array([col_indx for _ in tile.edges[key][0]])
+                    ident_arr[2, :, cumul_col] = np.array([key_indx for _ in tile.edges[key][0]])
+
+                    cumul_col += 1
+
+                cumul_size += tile.shape[1]
+
+            # filled_edge_arr = np.apply_along_axis(lambda x: )
+
+
+
 
 
 
@@ -530,6 +595,7 @@ class TileGrid(object):
         # look at all tile edges in a row pixel by pixel
         # find all the tiles that are adjacent/consecutive
         # group adjacent tiles together and you have range of discontinuity
+
         # fill edges by interpolation
         # fill layers by interpolation
         # repeat for other direction
