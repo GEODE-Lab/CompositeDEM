@@ -1,7 +1,7 @@
 from scipy.interpolate import interp1d
 from demLib.common import group_consecutive
 from demLib.spatial import Raster
-from demLib.exceptions import AxisError, FileNotFound, FieldError
+from demLib.exceptions import AxisError, FileNotFound, FieldError, ImageProcessingError
 import numpy as np
 import json
 
@@ -278,8 +278,8 @@ class Edge(object):
                     arr_first_loc = last_block_end
                     arr_last_loc = arr_end_locs[1]
                 else:
-                    arr_first_loc = nodata
-                    arr_last_loc = nodata
+                    arr_first_loc = arr_end_locs[0]
+                    arr_last_loc = arr_end_locs[1]
 
             return np.array([nodata if arr_first_loc == nodata else arr[arr_first_loc],
                              nodata if arr_last_loc == nodata else arr[arr_last_loc],
@@ -536,70 +536,59 @@ class TileGrid(object):
         tile.edges[edges[0]] = tile_edge, tile_edge_loc
         next_tile.edges[edges[1]] = next_tile_edge, next_tile_edge_loc
 
-    def fill_multi_tile_voids(self,
-                              axis=1):
+    def fill_multi_tile_void_edges(self,
+                                   axis=1):
         """
-        Method to fill voids across more than two tiles
+        Method to fill edges of tiles with voids across more than two tiles
         :param axis: Axis along which the voids are to be filled
         """
+        if axis == 1:
+            grid_rows = self.grid_sizey
+            grid_cols = self.grid_sizex
+            edge_keys = ['l', 'r']
+            grid = self.grid
 
-        grid_cols = self.grid_sizex
-        grid_rows = self.grid_sizey
-        edge_keys = ['l', 'r']
+        elif axis == 0:
+            grid_rows = self.grid_sizex
+            grid_cols = self.grid_sizey
+            edge_keys = ['t', 'b']
+            grid = self.grid.T
+
+        else:
+            raise ValueError('Axis can only be 0 or 1')
+
+        arr_ncols = 2 * grid_cols
 
         for row_indx in range(grid_rows):
 
-            arr_ncols = 2 * self.grid_sizex
-            arr_nrows = self.grid[row_indx, 0].shape[0]
+            arr_nrows = grid[row_indx, 0].shape[0]
 
-            # 2 layers for calculation:
-            # 0) edge vals, 1) cumul edge locs,
-            edge_arr = np.zeros((2, arr_nrows, arr_ncols), dtype=np.float32)
-
-            # 3 layers for identification and replacement:
-            # 0) edge locs, 1) grid col, 2) edge key
-            ident_arr = np.zeros((3, arr_nrows, arr_ncols), dtype=np.int64)
-
-            cumul_col = 0
-            cumul_size = 0
-
+            edge_list = []
+            val_list = []
             for col_indx in range(grid_cols):
-                tile = self.grid[row_indx, col_indx]
+                tile = grid[row_indx, col_indx]
 
-                for key_indx, key in enumerate(edge_keys):
+                edge_list.append(tile.edges[edge_keys[0]][0])
+                edge_list.append(tile.edges[edge_keys[1]][0])
 
-                    # for calculation
-                    edge_arr[0, :, cumul_col] = np.array(tile.edges[key][0])
-                    edge_arr[1, :, cumul_col] = np.array([loc + cumul_size for loc in tile.edges[key][1]])
+                val_list.append(tile.edges[edge_keys[0]][0])
+                val_list.append(tile.edges[edge_keys[1]][0])
 
-                    # for identification
-                    ident_arr[0, :, cumul_col] = np.array(tile.edges[key][1])
-                    ident_arr[1, :, cumul_col] = np.array([col_indx for _ in tile.edges[key][0]])
-                    ident_arr[2, :, cumul_col] = np.array([key_indx for _ in tile.edges[key][0]])
+            edge_arr = np.array(edge_list, dtype=np.float32).T
+            val_arr = np.array(val_list, dtype=np.int32).T
 
-                    cumul_col += 1
+            if edge_arr.shape[0] != arr_nrows or edge_arr.shape[1] != arr_ncols:
+                raise ImageProcessingError("Incorrect tile information in grid")
 
-                cumul_size += tile.shape[1]
+            for row in range(edge_arr.shape[1]):
+                temp_arr = Layer.fill_voids_by_loc(edge_arr[row, :],
+                                                   self.nodata,
+                                                   val_arr[row, :])
+                edge_arr[row, :] = temp_arr
 
-            # filled_edge_arr = np.apply_along_axis(lambda x: )
-
-
-
-
-
-
-
-
-
-
-        # look at all tile edges in a row pixel by pixel
-        # find all the tiles that are adjacent/consecutive
-        # group adjacent tiles together and you have range of discontinuity
-
-        # fill edges by interpolation
-        # fill layers by interpolation
-        # repeat for other direction
-        # take mean of both directions
-
-
+            edge_counter = 0
+            for col_indx in range(grid_cols):
+                grid[row_indx, col_indx].edges[edge_keys[0]] = edge_arr[:, edge_counter]
+                grid[row_indx, col_indx].edges[edge_keys[1]] = edge_arr[:, edge_counter + 1]
+                edge_counter += 2
 
