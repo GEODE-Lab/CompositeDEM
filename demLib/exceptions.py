@@ -4,7 +4,8 @@ __all__ = ['FileNotFound',
            'AxisError',
            'ObjectNotFound',
            'UninitializedError',
-           'TileNotFound']
+           'TileNotFound',
+           'ImageProcessingError']
 
 
 class FieldError(Exception):
