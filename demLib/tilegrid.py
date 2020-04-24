@@ -1,7 +1,7 @@
 from scipy.interpolate import interp1d
 from demLib.common import group_consecutive
 from demLib.spatial import Raster
-from demLib.exceptions import AxisError, FileNotFound, FieldError, ImageProcessingError
+from demLib.exceptions import AxisError, FileNotFound, FieldError, ProcessingError
 import numpy as np
 import json
 
@@ -320,7 +320,7 @@ class Tile(Raster, Edge, Layer):
     """
 
     def __init__(self,
-                 filename,
+                 filename=None,
                  edgefile=None,
                  nodata=None,
                  get_array=True):
@@ -360,6 +360,123 @@ class Tile(Raster, Edge, Layer):
         self.sizex = self.bounds[1] - self.bounds[0]
         self.sizey = self.bounds[3] - self.bounds[2]
 
+    def __add__(self,
+                other):
+        """
+        Method to add one Tile to another
+        :param other: Other tile object or number
+        :returns: Tile object
+        """
+
+        result = Tile()
+
+        result.__dict__.update(self.__dict__)
+
+        if isinstance(other, Tile):
+            if self.sizex != other.sizex or self.sizey != other.sizey:
+                raise ProcessingError("Unequal tile sizes for subtract")
+            else:
+                result.array = self.array + other.array
+        elif type(other) in (float, int):
+            result.array = self.array + other
+        else:
+            raise ProcessingError("Unsupported data type for add")
+
+        return result
+
+    def __sub__(self,
+                other):
+        """
+        Method to subtract one Tile from another
+        :param other: Other tile object or number
+        :returns: Tile object
+        """
+
+        result = Tile()
+
+        result.__dict__.update(self.__dict__)
+
+        if isinstance(other, Tile):
+            if self.sizex != other.sizex or self.sizey != other.sizey:
+                raise ProcessingError("Unequal tile sizes for subtract")
+            else:
+                result.array = self.array - other.array
+        elif type(other) in (float, int):
+            result.array = self.array - other
+        else:
+            raise ProcessingError("Unsupported data type for subtract")
+
+        return result
+
+    def __mul__(self,
+                other):
+        """
+        Method to multiply one Tile with another
+        :param other: Other tile object or number
+        :returns: Tile object
+        """
+
+        result = Tile()
+
+        result.__dict__.update(self.__dict__)
+
+        if isinstance(other, Tile):
+            if self.sizex != other.sizex or self.sizey != other.sizey:
+                raise ProcessingError("Unequal tile sizes for multiply")
+            else:
+                result.array = self.array * other.array
+        elif type(other) in (float, int):
+            result.array = self.array * other
+        else:
+            raise ProcessingError("Unsupported data type for multiply")
+
+        return result
+
+    def __truediv__(self,
+                    other):
+        """
+        Method to divide one Tile from another
+        :param other: Other tile object or number
+        :returns: Tile object
+        """
+
+        result = Tile()
+
+        result.__dict__.update(self.__dict__)
+
+        if isinstance(other, Tile):
+            if self.sizex != other.sizex or self.sizey != other.sizey:
+                raise ProcessingError("Unequal tile sizes for divide")
+            else:
+                result.array = self.array / other.array
+        elif type(other) in (float, int):
+            result.array = self.array / other
+        else:
+            raise ProcessingError("Unsupported data type for divide")
+
+        return result
+
+    def copy_voids(self,
+                   other):
+        """
+        Method to copy voids in one Tile to another
+        :param other: Other tile object
+        :returns: Tile object
+        """
+        result = Tile()
+
+        if isinstance(other, Tile):
+            if self.sizex != other.sizex or self.sizey != other.sizey:
+                raise ProcessingError("Unequal tile sizes for copy")
+            else:
+                result.__dict__.update(other.__dict__)
+                void_loc = np.where(self.array == self.nodata)
+                result.array[void_loc] = self.nodata
+        else:
+            raise ProcessingError("Unsupported data type for copy")
+
+        return result
+
 
 class TileGrid(object):
 
@@ -387,42 +504,6 @@ class TileGrid(object):
         self.grid_sizey = None  # Number of Tiles along y
 
         self.nodata = None
-
-    def __add__(self, other):
-        """
-        Method to add one TileGrid to another
-        """
-        # add all tile layers
-        # compute edges again for the output
-
-        pass
-
-    def __sub__(self, other):
-        """
-        Method to subtract one TileGrid from another
-        """
-        # subtract all layers from corresponding layers
-        # re compute edges
-
-        pass
-
-    def make_void_layers(self, other):
-        """
-        Method to prepare a TileGrid layer of voids only
-        """
-        # make a duplicate TileGrid
-        # read all tiles and find voids
-        # store only the voids in other layer
-        pass
-
-    def apply_void_layers(self, other):
-        """
-        Method to apply the TileGrid layer of voids to self or another TileGrid object
-        """
-        # make void layer
-        # mask the void layer in current TileGrid
-
-        pass
 
     def get_tile_bounds(self):
         """
@@ -578,7 +659,7 @@ class TileGrid(object):
             val_arr = np.array(val_list, dtype=np.int32).T
 
             if edge_arr.shape[0] != arr_nrows or edge_arr.shape[1] != arr_ncols:
-                raise ImageProcessingError("Incorrect tile information in grid")
+                raise ProcessingError("Incorrect tile information in grid")
 
             for row in range(edge_arr.shape[1]):
                 temp_arr = Layer.fill_voids_by_loc(edge_arr[row, :],
@@ -591,4 +672,3 @@ class TileGrid(object):
                 grid[row_indx, col_indx].edges[edge_keys[0]] = edge_arr[:, edge_counter]
                 grid[row_indx, col_indx].edges[edge_keys[1]] = edge_arr[:, edge_counter + 1]
                 edge_counter += 2
-
