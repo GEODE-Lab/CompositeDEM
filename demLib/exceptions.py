@@ -5,7 +5,7 @@ __all__ = ['FileNotFound',
            'ObjectNotFound',
            'UninitializedError',
            'TileNotFound',
-           'ImageProcessingError']
+           'ProcessingError']
 
 
 class FieldError(Exception):
@@ -142,7 +142,7 @@ class FileNotFound(Exception):
         self.error = error
 
 
-class ImageProcessingError(Exception):
+class ProcessingError(Exception):
     status_code = 407
 
     def __init__(self, error="Image Processing Error",
