@@ -514,6 +514,12 @@ class TileGrid(object):
 
         self.nodata = None
 
+        self.adjacent_filled = False
+        self.multi_filled = True
+
+    def __repr__(self):
+        return self.__class__.__name__
+
     def get_tile_bounds(self):
         """
         Method to assign bounds and centroids of all Tiles in the list
@@ -706,3 +712,44 @@ class TileGrid(object):
                 grid[row_indx, col_indx].edges[edge_keys[0]] = edge_arr[:, edge_counter]
                 grid[row_indx, col_indx].edges[edge_keys[1]] = edge_arr[:, edge_counter + 1]
                 edge_counter += 2
+
+    def fill_adjacent(self):
+        """
+        Method to fill voids on adjacent edges in a TileGrid object
+        """
+
+        if self.adjacent_filled:
+            warnings.warn("Adjacent tiles are already filled.\n" +
+                          "Set flag {}.adjacent_filled=False for re-filling".format(self))
+            return
+
+        if self.grid is None:
+            self.make_grid()
+
+        for axis in [0, 1]:
+            tile = self.get_next_tile(axis)
+            for nxt_tile in self.get_next_tile(axis):
+                if isinstance(nxt_tile, Tile):
+                    self.fill_adjacent_edges(tile, nxt_tile, axis)
+                    tile = nxt_tile
+                else:
+                    tile = self.get_next_tile(axis)
+
+    def fill_multi(self):
+        """
+        Method to fill multi tile voids in a TileGrid object
+        """
+
+        if self.multi_filled:
+            warnings.warn("Multiple tile voids are already filled.\n"
+                          "Set flag {}.multi_filled=False for re-filling".format(self))
+        elif not self.adjacent_filled:
+            warnings.warn("Adjacent tile voids unfilled. Filling them first\n")
+            self.fill_adjacent()
+        else:
+            if self.grid is None:
+                self.make_grid()
+
+            for axis in [0, 1]:
+                self.fill_multi_tile_void_edges(axis)
+
