@@ -464,7 +464,7 @@ class Tile(Raster, Edge, Layer):
         """
         Method to copy voids in one Tile to another
         :param other: Other tile object
-        :returns: Tile object
+        :returns: None
         """
         result = Tile()
 
@@ -474,12 +474,10 @@ class Tile(Raster, Edge, Layer):
                 raise ProcessingError("Unequal tile sizes for copy")
             else:
                 result.__dict__.update(other.__dict__)
-                void_loc = np.where(self.array == self.nodata)
-                result.array[void_loc] = self.nodata
+                void_loc = np.where(other.array == other.nodata)
+                self.array[void_loc] = self.nodata
         else:
             raise ProcessingError("Unsupported data type for copy")
-
-        return result
 
     def update_array(self,
                      edgefile=None):
