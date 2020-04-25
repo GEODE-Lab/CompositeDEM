@@ -193,8 +193,8 @@ class Edge(object):
     def __repr__(self):
         return '<Edge object {}>'.format('-MEM-' if self.filename is None else self.filename)
 
-    def load(self,
-             filename=None):
+    def load_edges(self,
+                   filename=None):
         """
         Method to load an edge dictionary from file
         :param filename: Name of file with edge information
@@ -212,8 +212,8 @@ class Edge(object):
 
         self.nodata = self.edges['n']
 
-    def write(self,
-              filename=None):
+    def write_edges(self,
+                    filename=None):
         """
         Method to write an edge dictionary to file
         :param filename: Name of file with edge information
@@ -340,8 +340,8 @@ class Tile(Raster, Edge, Layer):
                        nodata=self.nodata)
 
         if edgefile is not None and File(edgefile).file_exists():
-            Edge.load(self,
-                      filename=edgefile)
+            Edge.load_edges(self,
+                            filename=edgefile)
 
         elif self.filename is not None:
             if get_array:
@@ -358,6 +358,11 @@ class Tile(Raster, Edge, Layer):
         # sizes of Tile along x and y in spatial reference units
         self.sizex = self.bounds[1] - self.bounds[0]
         self.sizey = self.bounds[3] - self.bounds[2]
+
+        if self.array is not None and self.nodata is not None:
+            self.void_loc = np.where(self.array == self.nodata)
+        else:
+            self.void_loc = None
 
     def __add__(self,
                 other):
@@ -381,6 +386,12 @@ class Tile(Raster, Edge, Layer):
             result.array = self.array + other
         else:
             raise ProcessingError("Unsupported data type for add")
+
+        if self.void_loc is not None:
+            result.array[self.void_loc] = self.nodata
+
+        if other.void_loc is not None:
+            result.array[self.void_loc] = self.nodata
 
         return result
 
@@ -407,55 +418,11 @@ class Tile(Raster, Edge, Layer):
         else:
             raise ProcessingError("Unsupported data type for subtract")
 
-        return result
+        if self.void_loc is not None:
+            result.array[self.void_loc] = self.nodata
 
-    def __mul__(self,
-                other):
-        """
-        Method to multiply one Tile with another
-        :param other: Other tile object or number
-        :returns: Tile object
-        """
-
-        result = Tile()
-
-        result.__dict__.update(self.__dict__)
-
-        if isinstance(other, Tile):
-            if self.metadata['ncols'] != other.metadata['ncols'] or \
-                    self.metadata['nrows'] != other.metadata['nrows']:
-                raise ProcessingError("Unequal tile sizes for multiply")
-            else:
-                result.array = self.array * other.array
-        elif type(other) in (float, int):
-            result.array = self.array * other
-        else:
-            raise ProcessingError("Unsupported data type for multiply")
-
-        return result
-
-    def __truediv__(self,
-                    other):
-        """
-        Method to divide one Tile from another
-        :param other: Other tile object or number
-        :returns: Tile object
-        """
-
-        result = Tile()
-
-        result.__dict__.update(self.__dict__)
-
-        if isinstance(other, Tile):
-            if self.metadata['ncols'] != other.metadata['ncols'] or \
-                    self.metadata['nrows'] != other.metadata['nrows']:
-                raise ProcessingError("Unequal tile sizes for divide")
-            else:
-                result.array = self.array / other.array
-        elif type(other) in (float, int):
-            result.array = self.array / other
-        else:
-            raise ProcessingError("Unsupported data type for divide")
+        if other.void_loc is not None:
+            result.array[self.void_loc] = self.nodata
 
         return result
 
@@ -474,8 +441,8 @@ class Tile(Raster, Edge, Layer):
                 raise ProcessingError("Unequal tile sizes for copy")
             else:
                 result.__dict__.update(other.__dict__)
-                void_loc = np.where(other.array == other.nodata)
-                self.array[void_loc] = self.nodata
+
+                self.array[other.void_loc] = self.nodata
         else:
             raise ProcessingError("Unsupported data type for copy")
 
@@ -485,7 +452,7 @@ class Tile(Raster, Edge, Layer):
         Method to update tile array using edges (edge_dict)
         """
         if edgefile is not None and File(edgefile).file_exists():
-            self.load(edgefile)
+            self.load_edges(edgefile)
 
         if self.edges is None:
             warnings.warn("Edge dictionary or file is missing in input. No edges loaded.")
