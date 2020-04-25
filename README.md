@@ -30,6 +30,6 @@ Erik Husby
 
 ### Computing Resources
 
-`Northern Arizona University's computing cluster Monsoon`  
-`NASA ABoVE Science Cloud`
+Northern Arizona University's computing cluster `Monsoon`  
+NASA's `ABoVE Science Cloud`
 
