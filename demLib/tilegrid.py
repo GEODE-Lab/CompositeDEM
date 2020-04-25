@@ -486,7 +486,7 @@ class Tile(Raster, Edge, Layer):
         """
         Method to update tile array using edges (edge_dict)
         """
-        if edgefile is not None:
+        if edgefile is not None and File(edgefile).file_exists():
             self.load(edgefile)
 
         if self.edges is None:
