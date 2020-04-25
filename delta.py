@@ -11,7 +11,7 @@ Example of script use:
 
 > python delta.py /tmp/file_list_tile_h001_v001.txt /tmp/output_tile_h001_v001.tif
 
-Example of text in rank list text file:
+Example text in rank list text file:
  
 /tmp/thisIsVeryFirstDEM_tileH001V001.tif
 /tmp/TotallySecondDEMFile_tile_h001_v001.tif
