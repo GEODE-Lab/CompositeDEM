@@ -8,8 +8,8 @@ import time
 import gc
 from demLib.common import File, group_multi, Timer
 from demLib.spatial import Vector
-from data import above_coords
-from data import can_file_dir, tile_file, out_file, out_dir
+from scripts.data import above_coords
+from scripts.data import can_file_dir, tile_file, out_file, out_dir
 # pre_merge_border_vec, post_merge_border_vec, \
 # ak_file
 
