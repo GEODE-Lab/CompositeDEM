@@ -9,7 +9,7 @@ Script to apply delta surface fill. This script uses the following:
 
 Example of script use:
 
-> python delta.py /tmp/file_list_tile_h001_v001.txt /tmp/output_tile_h001_v001.tif
+> python delta.py /tmp/rank_list_file_h001_v001.txt /tmp/output_tile_h001_v001.tif
 
 Example text in rank list text file:
  
@@ -23,10 +23,10 @@ Example text in rank list text file:
 
 if __name__ == '__main__':
 
-    script, tile_list_file, outfile = sys.argv
+    script, rank_list_file, outfile = sys.argv
 
     # read text line by line from the rank list file
-    filelines = File(tile_list_file).file_lines()
+    filelines = File(rank_list_file).file_lines()
 
     # make a list of files
     rank_list = list(filename.strip() for filename in filelines)
