@@ -32,16 +32,14 @@ if __name__ == '__main__':
     rank_list = list(filename.strip() for filename in filelines)
 
     # DEM tile with first rank and its edge file name
-    tile = Tile(filename=rank_list[0],
-                get_array=True)
+    tile = Tile(filename=rank_list[0])
     edge_file = ''.join(rank_list[0].split('.')[:-1] + ['.edge'])
 
     # loop over the rest of tiles
     for indx in range(len(rank_list) - 1):
 
         # extract next tile
-        nxt_rank_tile = Tile(filename=rank_list[indx + 1],
-                             get_array=True)
+        nxt_rank_tile = Tile(filename=rank_list[indx + 1])
 
         # subtract previous tile from the next tile
         tile_diff = tile - nxt_rank_tile
