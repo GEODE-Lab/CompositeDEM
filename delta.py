@@ -7,7 +7,7 @@ Script to apply delta surface fill. This script uses the following:
 1) Text file with full path names of raster files (or VRTs) in the order of their rank for filling
 2) Path name of the output filled file
 
-Example of script use:
+Example usage:
 
 > python delta.py /tmp/rank_list_file_h001_v001.txt /tmp/output_tile_h001_v001.tif
 
