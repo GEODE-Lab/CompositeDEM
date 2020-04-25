@@ -7,86 +7,111 @@ import fnmatch
 import operator
 import itertools
 from functools import wraps
+from itertools import takewhile, repeat
 
 
-__all__ = ['File',
-           'Timer',
-           'group_consecutive',
-           'group_multi',
-           'get_memory_usage']
+
+__all__ = ['Common',
+           'File',
+           'Timer']
 
 
-def group_multi(in_list):
-    """
-    Method to group all numbers that occur together in any piece-wise-list manner or
-    in other words find all connected components in a graph
+class Common(object):
 
-    example: input [[2,4],[5,6,7,8,10],[3,9,12,4],[14,12],[99,100,101],[104,3],[405,455,456],[302,986,2]]
-    will be grouped to [[2, 3, 4, 9, 12, 14, 104, 302, 986],[5, 6, 7, 8, 10],[99, 100, 101],[405, 455, 456]]
+    @staticmethod
+    def string_to_type(x):
+        """
+        Method to return name of the data type
+        :param x: input item
+        :return: string
+        """
+        if type(x).__name__ == 'str':
+            x = x.strip()
+            try:
+                val = int(x)
+            except (ValueError, TypeError):
+                try:
+                    val = float(x)
+                except (ValueError, TypeError):
+                    try:
+                        val = str(x)
+                    except (ValueError, TypeError):
+                        val = None
+            x = val
+        return x
 
-    :param in_list: List of lists
-    :return: list of lists
-    """
-    out_list = []
-    while len(in_list) > 0:
-        first_chunk, *rest_chunks = in_list
-        first_chunk = set(first_chunk)
+    @staticmethod
+    def group_multi(in_list):
+        """
+        Method to group all numbers that occur together in any piece-wise-list manner or
+        in other words find all connected components in a graph
 
-        size_first = -1
-        while len(first_chunk) > size_first:
-            size_first = len(first_chunk)
+        example: input [[2,4],[5,6,7,8,10],[3,9,12,4],[14,12],[99,100,101],[104,3],[405,455,456],[302,986,2]]
+        will be grouped to [[2, 3, 4, 9, 12, 14, 104, 302, 986],[5, 6, 7, 8, 10],[99, 100, 101],[405, 455, 456]]
 
-            other = []
-            for chunk in rest_chunks:
-                if len(first_chunk.intersection(set(chunk))) > 0:
-                    first_chunk |= set(chunk)
-                else:
-                    other.append(chunk)
-            rest_chunks = other
+        :param in_list: List of lists
+        :return: list of lists
+        """
+        out_list = []
+        while len(in_list) > 0:
+            first_chunk, *rest_chunks = in_list
+            first_chunk = set(first_chunk)
 
-        out_list.append(list(first_chunk))
-        in_list = rest_chunks
+            size_first = -1
+            while len(first_chunk) > size_first:
+                size_first = len(first_chunk)
 
-    return out_list
+                other = []
+                for chunk in rest_chunks:
+                    if len(first_chunk.intersection(set(chunk))) > 0:
+                        first_chunk |= set(chunk)
+                    else:
+                        other.append(chunk)
+                rest_chunks = other
 
+            out_list.append(list(first_chunk))
+            in_list = rest_chunks
 
-def group_consecutive(arr):
-    """
-    Method to group consecutive elements into one sorted list
-    :param arr: List of numbers
-    :returns: List of lists
-    """
-    grouped_elements = []
-    for _, group in itertools.groupby(enumerate(sorted(arr)), key=lambda x: x[0] - x[1]):
-        grouped_elements.append(sorted(list(map(operator.itemgetter(1), group))))
-    return grouped_elements
+        return out_list
 
+    @staticmethod
+    def group_consecutive(arr):
+        """
+        Method to group consecutive elements into one sorted list
+        :param arr: List of numbers
+        :returns: List of lists
+        """
+        grouped_elements = []
+        for _, group in itertools.groupby(enumerate(sorted(arr)), key=lambda x: x[0] - x[1]):
+            grouped_elements.append(sorted(list(map(operator.itemgetter(1), group))))
+        return grouped_elements
 
-def get_memory_usage():
-    """
-    Function to return memory usage of the python process
-    :returns: String of the form '16.2 GB'
-    """
-    process = psutil.Process(os.getpid())
-    mem = process.memory_info().rss
+    @staticmethod
+    def get_memory_usage():
+        """
+        Function to return memory usage of the python process
+        :returns: String of the form '16.2 GB'
+        """
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info().rss
 
-    if 2 ** 10 <= mem < 2 ** 20:
-        div = float(2 ** 10)
-        suff = ' KB'
-    elif 2 ** 20 <= mem < 2 ** 30:
-        div = float(2 ** 20)
-        suff = ' MB'
-    elif 2 ** 30 <= mem < 2 ** 40:
-        div = float(2 ** 30)
-        suff = ' GB'
-    elif mem >= 2 ** 40:
-        div = float(2 ** 40)
-        suff = ' TB'
-    else:
-        div = 1.0
-        suff = ' BYTES'
+        if 2 ** 10 <= mem < 2 ** 20:
+            div = float(2 ** 10)
+            suff = ' KB'
+        elif 2 ** 20 <= mem < 2 ** 30:
+            div = float(2 ** 20)
+            suff = ' MB'
+        elif 2 ** 30 <= mem < 2 ** 40:
+            div = float(2 ** 30)
+            suff = ' GB'
+        elif mem >= 2 ** 40:
+            div = float(2 ** 40)
+            suff = ' TB'
+        else:
+            div = 1.0
+            suff = ' BYTES'
 
-    return '{:{w}.{p}f}'.format(process.memory_info().rss / div, w=5, p=1) + suff
+        return '{:{w}.{p}f}'.format(process.memory_info().rss / div, w=5, p=1) + suff
 
 
 class File(object):
@@ -278,6 +303,33 @@ class File(object):
                 result.append(temp[j])
 
         return result
+
+    def file_lines(self,
+                   nlines=False,
+                   bufsize=102400):
+        """
+        Find number of lines or get text lines in a text or csv file
+        :param nlines: If only the number of lines in a file should be returned
+        :param bufsize: size of buffer to be read
+        :return: list or number
+        """
+        with open(self.filename, 'r') as f:
+            bufgen = takewhile(lambda x: x, (f.read(bufsize) for _ in repeat(None)))
+
+            if nlines:
+                val = sum(buf.count('\n') for buf in bufgen if buf)
+            else:
+                val = list()
+                remaining = ''
+                for buf in bufgen:
+                    if buf:
+                        temp_lines = (remaining + buf).split('\n')
+                        if len(temp_lines) <= 1:
+                            remaining += ''.join(temp_lines)
+                        else:
+                            val += temp_lines[:-1]
+                            remaining = temp_lines[-1]
+        return val
 
 
 class Timer:
