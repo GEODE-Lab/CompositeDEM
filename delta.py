@@ -52,10 +52,8 @@ if __name__ == '__main__':
                                               rank_list[indx + 1]))
 
         # subtract previous tile from the next tile
+        # voids from the tiles are copied to the difference tile
         tile_diff = tile - nxt_rank_tile
-
-        # copy voids from the first tile
-        tile_diff.copy_voids(tile)
 
         # update the difference tile using edge file if available
         # if no edge file is available this step will warn and not do anything
@@ -69,6 +67,9 @@ if __name__ == '__main__':
         # add the next tile to the difference tile,
         # after all the voids are filled
         tile = tile_diff + nxt_rank_tile
+
+        # copy voids from the next tile to the output
+        tile.copy_voids(nxt_rank_tile)
 
         # this edge file will be used in the next loop
         edge_file = ''.join(rank_list[indx + 1].split('.')[:-1] + ['.edge'])
