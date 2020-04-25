@@ -1,7 +1,8 @@
 from scipy.interpolate import interp1d
-from demLib.common import group_consecutive
+from demLib.common import Common, File
 from demLib.spatial import Raster
 from demLib.exceptions import AxisError, FileNotFound, FieldError, ProcessingError
+import warnings
 import numpy as np
 import json
 
@@ -20,16 +21,10 @@ class Layer(object):
 
     def __init__(self,
                  array=None,
-                 edgex=None,
-                 edgey=None,
                  nodata=None):
         """
         Instantiate class
         :param array: numpy array (1D)
-        :param edgey: The two edges of the array (nrows x 2) columns:
-                        1) left , 2) right
-        :param edgex: The two edges of the array (2 x ncol) rows:
-                       1) top , 2) bottom
         :param nodata:
         """
 
@@ -37,20 +32,8 @@ class Layer(object):
         self.ncol = None
         self.nrows = None
         self.nodata = nodata
-        self.edgex = edgex
-        self.edgey = edgey
 
         if self.array is not None:
-            if self.edgex is None:
-                self.edgex = self.array[[0, -1], :]
-            else:
-                self.array[[0, -1], :] = self.edgex
-
-            if self.edgey is None:
-                self.edgey = self.array[:, [0, -1]]
-            else:
-                self.array[:, [0, -1]] = self.edgey
-
             self.ncol = array.shape[1]
             self.nrows = array.shape[0]
 
@@ -69,7 +52,7 @@ class Layer(object):
         """
 
         void_locs = np.msort(np.where(arr == nodata)[0])
-        grouped_locs = group_consecutive(void_locs.tolist())
+        grouped_locs = Common.group_consecutive(void_locs.tolist())
 
         blocks = []
         for group in grouped_locs:
@@ -181,12 +164,12 @@ class Edge(object):
     Class for storing and processing edge values for a Raster Tile
     """
     def __init__(self,
-                 edge_dict=None,
+                 edges=None,
                  filename=None,
                  nodata=None):
         """
         Instantiate Edge class
-        :param edge_dict: Dictionary storing edge information in the following format:
+        :param edges: Dictionary to store edge information in the following format:
                         {
                             'r' : [right_edge_vals, right_edge_loc],
                             'b' : [bottom_edge_vals, bottom_edge_loc],
@@ -203,7 +186,7 @@ class Edge(object):
         :param nodata: No data value
         """
 
-        self.edges = edge_dict
+        self.edges = edges
         self.filename = filename
         self.nodata = nodata
 
@@ -286,13 +269,20 @@ class Edge(object):
                              arr_first_loc,
                              arr_last_loc])
 
-    def extract(self,
-                array):
+    def extract_edges(self,
+                      array=None):
         """
         Method to extract edges from a tile
         :param array: 2D array
         :return: edge dict
         """
+
+        if array is None:
+            if hasattr(self, 'array'):
+                array = self.array
+            else:
+                raise ProcessingError("No array to extract edges from.")
+
         # value and location array for left and right edges
         val_loc_arr_lr = np.apply_along_axis(lambda x: self.get_nearest_loc_val(x, self.nodata), 1, array)
 
@@ -332,23 +322,32 @@ class Tile(Raster, Edge, Layer):
         """
 
         Raster.__init__(self,
-                        filename,
-                        get_array)
+                        filename=filename,
+                        get_array=get_array)
+
+        if nodata is not None:
+            self.nodata = nodata
+        elif self.metadata['nodatavalue'] is not None:
+            self.nodata = self.metadata['nodatavalue']
+        else:
+            warnings.warn("No-data value is not defined")
 
         Edge.__init__(self,
                       filename=edgefile,
-                      nodata=nodata)
+                      nodata=self.nodata)
+        Layer.__init__(self,
+                       array=self.array,
+                       nodata=self.nodata)
 
-        if edgefile is not None:
+        if edgefile is not None and File(edgefile).file_exists():
             Edge.load(self,
                       filename=edgefile)
-        elif get_array:
-            Edge.extract(self,
-                         self.array[0, :, :])
 
-            Layer.__init__(self,
-                           array=self.array,
-                           nodata=nodata)
+        elif self.filename is not None:
+            if get_array:
+                Layer.__init__(self,
+                               array=self.array,
+                               nodata=self.nodata)
 
         # geometric properties of the Tile object:
         # bounds: (xmin, xmax, ymin, ymax) and centroid (x, y)
@@ -373,8 +372,9 @@ class Tile(Raster, Edge, Layer):
         result.__dict__.update(self.__dict__)
 
         if isinstance(other, Tile):
-            if self.sizex != other.sizex or self.sizey != other.sizey:
-                raise ProcessingError("Unequal tile sizes for subtract")
+            if self.metadata['ncols'] != other.metadata['ncols'] or \
+                    self.metadata['nrows'] != other.metadata['nrows']:
+                raise ProcessingError("Unequal tile sizes for add")
             else:
                 result.array = self.array + other.array
         elif type(other) in (float, int):
@@ -397,7 +397,8 @@ class Tile(Raster, Edge, Layer):
         result.__dict__.update(self.__dict__)
 
         if isinstance(other, Tile):
-            if self.sizex != other.sizex or self.sizey != other.sizey:
+            if self.metadata['ncols'] != other.metadata['ncols'] or \
+                    self.metadata['nrows'] != other.metadata['nrows']:
                 raise ProcessingError("Unequal tile sizes for subtract")
             else:
                 result.array = self.array - other.array
@@ -421,7 +422,8 @@ class Tile(Raster, Edge, Layer):
         result.__dict__.update(self.__dict__)
 
         if isinstance(other, Tile):
-            if self.sizex != other.sizex or self.sizey != other.sizey:
+            if self.metadata['ncols'] != other.metadata['ncols'] or \
+                    self.metadata['nrows'] != other.metadata['nrows']:
                 raise ProcessingError("Unequal tile sizes for multiply")
             else:
                 result.array = self.array * other.array
@@ -445,7 +447,8 @@ class Tile(Raster, Edge, Layer):
         result.__dict__.update(self.__dict__)
 
         if isinstance(other, Tile):
-            if self.sizex != other.sizex or self.sizey != other.sizey:
+            if self.metadata['ncols'] != other.metadata['ncols'] or \
+                    self.metadata['nrows'] != other.metadata['nrows']:
                 raise ProcessingError("Unequal tile sizes for divide")
             else:
                 result.array = self.array / other.array
@@ -466,7 +469,8 @@ class Tile(Raster, Edge, Layer):
         result = Tile()
 
         if isinstance(other, Tile):
-            if self.sizex != other.sizex or self.sizey != other.sizey:
+            if self.metadata['ncols'] != other.metadata['ncols'] or \
+                    self.metadata['nrows'] != other.metadata['nrows']:
                 raise ProcessingError("Unequal tile sizes for copy")
             else:
                 result.__dict__.update(other.__dict__)
@@ -476,6 +480,46 @@ class Tile(Raster, Edge, Layer):
             raise ProcessingError("Unsupported data type for copy")
 
         return result
+
+    def update_array(self,
+                     edgefile=None):
+        """
+        Method to update tile array using edges (edge_dict)
+        """
+        if edgefile is not None:
+            self.load(edgefile)
+
+        if self.edges is None:
+            warnings.warn("Edge dictionary or file is missing in input. No edges loaded.")
+            return
+
+        else:
+            for key, edge_list in self.edges.items():
+                val_arr = np.array(edge_list[0])
+                loc_arr = np.array(edge_list[1])
+
+                if key == 'l':
+                    nodata_loc = np.where(loc_arr != 0)
+                    val_arr[nodata_loc] = self.nodata
+                    self.array[:, 0] = val_arr
+
+                elif key == 'r':
+                    nodata_loc = np.where(loc_arr != self.metadata['ncols'])
+                    val_arr[nodata_loc] = self.nodata
+                    self.array[:, self.metadata['ncols']] = val_arr
+
+                elif key == 't':
+                    nodata_loc = np.where(loc_arr != 0)
+                    val_arr[nodata_loc] = self.nodata
+                    self.array[0, :] = val_arr
+
+                elif key == 'b':
+                    nodata_loc = np.where(loc_arr != self.metadata['nrows'])
+                    val_arr[nodata_loc] = self.nodata
+                    self.array[self.metadata['nrows'], :] = val_arr
+
+                else:
+                    raise KeyError("Invalid keys in edge dictionary")
 
 
 class TileGrid(object):
