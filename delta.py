@@ -1,5 +1,5 @@
 from demLib.tilegrid import Tile
-from demLib import File
+from demLib import File, Common
 import sys
 
 """
@@ -25,11 +25,18 @@ if __name__ == '__main__':
 
     script, rank_list_file, outfile = sys.argv
 
+    Common.cprint('===============\nRank list file: {}\n'.format(rank_list_file))
+
     # read text line by line from the rank list file
     filelines = File(rank_list_file).file_lines()
 
     # make a list of files
     rank_list = list(filename.strip() for filename in filelines)
+
+    Common.cprint('=== DEM files ===')
+    for filename in rank_list:
+        Common.cprint(filename)
+    Common.cprint('\n=== Delta method ===')
 
     # DEM tile with first rank and its edge file name
     tile = Tile(filename=rank_list[0])
@@ -40,6 +47,9 @@ if __name__ == '__main__':
 
         # extract next tile
         nxt_rank_tile = Tile(filename=rank_list[indx + 1])
+
+        Common.cprint('- {} ---- {} -'.format(rank_list[indx],
+                                              rank_list[indx + 1]))
 
         # subtract previous tile from the next tile
         tile_diff = tile - nxt_rank_tile
@@ -63,5 +73,8 @@ if __name__ == '__main__':
         # this edge file will be used in the next loop
         edge_file = ''.join(rank_list[indx + 1].split('.')[:-1] + ['.edge'])
 
+    Common.cprint('\n=== Delta complete ===\n\nWriting Raster {}\n'.format(outfile))
+
     # finally, write the tile to a raster file
     tile.write_raster(outfile)
+    Common.cprint('Done!')
