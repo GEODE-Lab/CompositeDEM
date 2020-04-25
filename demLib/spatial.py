@@ -346,7 +346,7 @@ class Raster(object):
         :return: None
         """
         sys.stdout.write('\nWriting {} raster: {}'.format(file_type,
-                                               outfile))
+                                                          outfile))
 
         if self.array is not None and self.metadata['datatype'] is None:
             self.metadata['datatype'] = gdal_array.NumericTypeCodeToGDALTypeCode(self.array.dtype.type)
