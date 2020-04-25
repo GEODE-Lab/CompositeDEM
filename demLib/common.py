@@ -10,7 +10,6 @@ from functools import wraps
 from itertools import takewhile, repeat
 
 
-
 __all__ = ['Common',
            'File',
            'Timer']
@@ -112,6 +111,18 @@ class Common(object):
             suff = ' BYTES'
 
         return '{:{w}.{p}f}'.format(process.memory_info().rss / div, w=5, p=1) + suff
+
+    @staticmethod
+    def cprint(text,
+               newline='\n'):
+        """
+        Print to stdout and flush
+        :param text: Text to print to stdout
+        :param newline: Newline character, default '\n' but can be changed
+                        to '' to concatenate consequetive outputs
+        """
+        sys.stdout.write(str(text) + newline)
+        sys.stdout.flush()
 
 
 class File(object):
