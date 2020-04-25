@@ -619,6 +619,31 @@ class TileGrid(object):
                             self.grid[grid_y_indx, grid_x_indx] = self.tiles[tile_indx]
                             self.grid_index[grid_y_indx, grid_x_indx] += 1
 
+    def get_next_tile(self,
+                      axis=1,
+                      separator=True,
+                      separator_value=0):
+        """
+        Method to return next tile in a grid with separator at each new line (row)
+        :param axis: Axis of operation (0=along rows, 1=along columns)
+        :param separator: If the new line (row) should have a separator
+        :param separator_value: value of the new line (row) separator
+        """
+        if axis == 0:
+            grid = self.grid.T
+        elif axis == 1:
+            grid = self.grid
+        else:
+            raise ValueError("Axis index must be 0 or 1")
+
+        for row_indx in range(grid.shape[0]):
+            for col_indx in range(grid.shape[1]):
+
+                if separator and (col_indx == grid.shape[1]):
+                    yield separator_value
+                else:
+                    yield grid[row_indx, col_indx]
+
     @staticmethod
     def fill_adjacent_edges(tile,
                             next_tile,
