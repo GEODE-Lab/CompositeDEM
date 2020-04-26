@@ -22,7 +22,7 @@ if __name__ == '__main__':
     nodata = -1
 
     edge = Edge(nodata=nodata)
-    edge.extract(ar)
+    edge.extract_edges(ar)
 
     print(edge)
     print(edge.edges)
