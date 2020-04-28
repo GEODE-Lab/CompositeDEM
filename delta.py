@@ -31,7 +31,7 @@ if __name__ == '__main__':
     filelines = File(rank_list_file).file_lines()
 
     # make a list of files
-    rank_list = list(filename.strip() for filename in filelines)
+    rank_list = list(filename.strip() for filename in filelines if len(filename.strip()) != 0)
 
     Common.cprint('=== DEM files ===')
     for filename in rank_list:
