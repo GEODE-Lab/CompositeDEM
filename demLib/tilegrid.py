@@ -723,6 +723,8 @@ class TileGrid(object):
                           "Set flag {}.adjacent_filled=False for re-filling".format(self))
             return
 
+        self.adjacent_filled = True
+
         if self.grid is None:
             self.make_grid()
 
@@ -743,10 +745,14 @@ class TileGrid(object):
         if self.multi_filled:
             warnings.warn("Multiple tile voids are already filled.\n"
                           "Set flag {}.multi_filled=False for re-filling".format(self))
+
         elif not self.adjacent_filled:
             warnings.warn("Adjacent tile voids unfilled. Filling them first\n")
             self.fill_adjacent()
+
         else:
+            self.multi_filled = True
+
             if self.grid is None:
                 self.make_grid()
 
