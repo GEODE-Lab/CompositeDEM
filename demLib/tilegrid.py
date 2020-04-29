@@ -320,6 +320,7 @@ class Tile(Raster, Edge, Layer):
         :param edgefile: filepath of .edge file
         :param nodata: No data value to use for voids
         """
+        self.array = None
 
         Raster.__init__(self,
                         filename=filename,
@@ -330,6 +331,7 @@ class Tile(Raster, Edge, Layer):
         elif self.metadata['nodatavalue'] is not None:
             self.nodata = self.metadata['nodatavalue']
         else:
+            self.nodata = None
             warnings.warn("No-data value is not defined")
 
         Edge.__init__(self,
@@ -351,18 +353,38 @@ class Tile(Raster, Edge, Layer):
 
         # geometric properties of the Tile object:
         # bounds: (xmin, xmax, ymin, ymax) and centroid (x, y)
-        self.bounds = self.get_bounds(bounds=True)
-        self.centroid = (float(self.bounds[0] + self.bounds[1]) / 2.0,
-                         float(self.bounds[2] + self.bounds[3]) / 2.0)
+        if self.metadata['transform'] is not None:
+            self.bounds = self.get_bounds(bounds=True)
+            self.centroid = (float(self.bounds[0] + self.bounds[1]) / 2.0,
+                             float(self.bounds[2] + self.bounds[3]) / 2.0)
 
-        # sizes of Tile along x and y in spatial reference units
-        self.sizex = self.bounds[1] - self.bounds[0]
-        self.sizey = self.bounds[3] - self.bounds[2]
+            # sizes of Tile along x and y in spatial reference units
+            self.sizex = self.bounds[1] - self.bounds[0]
+            self.sizey = self.bounds[3] - self.bounds[2]
 
         if self.array is not None and self.nodata is not None:
             self.void_loc = np.where(self.array == self.nodata)
         else:
             self.void_loc = None
+
+    def __repr__(self):
+        """
+        String representation of the Tile object
+        """
+        filename = getattr(self, 'filename', None)
+        edgefile = getattr(self, 'edgefile', None)
+        array = getattr(self, 'array', None)
+        nodata = getattr(self, 'nodata', None)
+
+        if array is not None:
+            shape = ' x '.join([str(elem) for elem in array.shape])
+        else:
+            shape = None
+
+        return "<Tile object with shape: {}, nodata: {}, filename: {}, edgefile: {} >".format(shape,
+                                                                                              nodata,
+                                                                                              filename,
+                                                                                              edgefile)
 
     def __add__(self,
                 other):
