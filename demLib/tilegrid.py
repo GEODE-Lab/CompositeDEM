@@ -1,4 +1,5 @@
 from scipy.interpolate import interp1d
+from scipy.ndimage import zoom
 from demLib.common import Common, File
 from demLib.spatial import Raster
 from demLib.exceptions import AxisError, FileNotFound, FieldError, ProcessingError
@@ -58,7 +59,7 @@ class Layer(object):
         for group in grouped_locs:
             if len(group) > 0:
                 blocks.append([group[0] - 1 if group[0] != 0 else nodata,
-                               group[-1] + 1 if group[-1] != arr.shape[0] else nodata])
+                               group[-1] + 1 if group[-1] != (arr.shape[0]-1) else nodata])
 
         return blocks
 
@@ -386,6 +387,30 @@ class Tile(Raster, Edge, Layer):
                                                                                               filename,
                                                                                               edgefile)
 
+    def resample(self,
+                 other,
+                 alg='bilinear'):
+        """
+        Re-sample tile array of other to match tile array of self.
+
+        :param other: The other tile to match the spatial resolution with
+        :param alg: Interpolation algorithm : { near, bilinear, cubic (default) }
+
+        :returns: numpy array
+        """
+        alg_options = {'near': 0, 'bilinear': 1, 'cubic': 2}
+
+        zoom_factor = [1,
+                       float(self.metadata['nrows'])/float(other.metadata['nrows']),
+                       float(self.metadata['ncols'])/float(other.metadata['ncols'])]
+
+        out_array = zoom(input=other.array,
+                         zoom=zoom_factor,
+                         order=alg_options[alg],
+                         prefilter=True)
+
+        return out_array
+
     def __add__(self,
                 other):
         """
@@ -401,9 +426,11 @@ class Tile(Raster, Edge, Layer):
         if isinstance(other, Tile):
             if self.metadata['ncols'] != other.metadata['ncols'] or \
                     self.metadata['nrows'] != other.metadata['nrows']:
-                raise ProcessingError("Unequal tile sizes for add")
-            else:
+                other.array = self.resample(other)
+                other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
+                    other.array.shape
                 result.array = self.array + other.array
+
         elif type(other) in (float, int):
             result.array = self.array + other
         else:
@@ -432,9 +459,11 @@ class Tile(Raster, Edge, Layer):
         if isinstance(other, Tile):
             if self.metadata['ncols'] != other.metadata['ncols'] or \
                     self.metadata['nrows'] != other.metadata['nrows']:
-                raise ProcessingError("Unequal tile sizes for subtract")
-            else:
+                other.array = self.resample(other)
+                other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
+                    other.array.shape
                 result.array = self.array - other.array
+
         elif type(other) in (float, int):
             result.array = self.array - other
         else:
