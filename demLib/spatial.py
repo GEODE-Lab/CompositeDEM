@@ -345,8 +345,6 @@ class Raster(object):
         :param file_type: File type (default: 'GTiff')
         :return: None
         """
-        sys.stdout.write('\nWriting {} raster: {}'.format(file_type,
-                                                          outfile))
 
         if self.array is not None and self.metadata['datatype'] is None:
             self.metadata['datatype'] = gdal_array.NumericTypeCodeToGDALTypeCode(self.array.dtype.type)
@@ -367,12 +365,14 @@ class Raster(object):
         for i in range(0, self.metadata['nbands']):
             band = self.array[i, :, :]
 
-            if self.metadata['bandname'] is not None:
-                if isinstance(self.metadata['bandname'], list):
-                    bandname = str(self.metadata['bandname'][i])
-                else:
-                    bandname = str(self.metadata['bandname'])
-            else:
+            bandname = getattr(self.metadata, 'bandnames', None)
+
+            if isinstance(self.metadata['bandnames'], list):
+                bandname = str(self.metadata['bandnames'][i])
+            elif type(bandname) == str:
+                bandname = self.metadata['bandnames']
+
+            if len(bandname) == 0 or bandname is None:
                 bandname = 'Band_{}'.format(str(i + 1))
 
             ptr.GetRasterBand(i + 1).WriteArray(band)
