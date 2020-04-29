@@ -86,10 +86,10 @@ class Raster(object):
             self.metadata['bandnames'] = []
             self.array = np.zeros((len(band_order),
                                    self.array_offsets[3],
-                                   self.array_offsets[2],
+                                   self.array_offsets[2]),
                                   gdal_array.
                                   GDALTypeCodeToNumericTypeCode(self.datasource.GetRasterBand(1).
-                                                                DataType)))
+                                                                DataType))
         else:
             self.array = None
 
