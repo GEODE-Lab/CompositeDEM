@@ -1,4 +1,5 @@
 from scipy.interpolate import interp1d
+from skimage.transform import resize
 from scipy.ndimage import zoom
 from demLib.common import Common, File
 from demLib.spatial import Raster
@@ -59,7 +60,7 @@ class Layer(object):
         for group in grouped_locs:
             if len(group) > 0:
                 blocks.append([group[0] - 1 if group[0] != 0 else nodata,
-                               group[-1] + 1 if group[-1] != (arr.shape[0]-1) else nodata])
+                               group[-1] + 1 if group[-1] != (arr.shape[0] - 1) else nodata])
 
         return blocks
 
@@ -108,10 +109,12 @@ class Layer(object):
         :param nodata: No data value
         :return: 1-D array
         """
+        blocks = Layer.find_blocks(arr,
+                                   nodata)
+
         return Layer.fill_voids(arr,
                                 nodata=nodata,
-                                blocks=Layer.find_blocks(arr,
-                                                         nodata))
+                                blocks=blocks)
 
     @staticmethod
     def fill_voids_by_loc(arr,
@@ -130,7 +133,8 @@ class Layer(object):
                                                          nodata),
                                 loc_array=loc_array)
 
-    def fill(self):
+    def fill(self,
+             bidirectional=True):
         """
         Method to fill voids in 2D array by
             Filling voids in 1D array along x axis
@@ -139,13 +143,18 @@ class Layer(object):
             This methods leaves out voids at edges
         :return: 2D array
         """
+        if len(self.array.shape) == 3:
+            x_axis, y_axis = 1, 2
+        else:
+            x_axis, y_axis = 0, 1
+
         xfilled_arr = np.apply_along_axis(self.fill_voids_1d,
-                                          1,
+                                          x_axis,
                                           self.array,
                                           self.nodata)
 
         yfilled_arr = np.apply_along_axis(self.fill_voids_1d,
-                                          0,
+                                          y_axis,
                                           self.array,
                                           self.nodata)
 
@@ -154,10 +163,11 @@ class Layer(object):
 
         mean_arr = (xfilled_arr + yfilled_arr)/2.0
 
-        mean_arr[x_remain_voids] = self.nodata
-        mean_arr[y_remain_voids] = self.nodata
+        if bidirectional:
+            mean_arr[x_remain_voids] = self.nodata
+            mean_arr[y_remain_voids] = self.nodata
 
-        return mean_arr
+        self.array = mean_arr
 
 
 class Edge(object):
@@ -333,7 +343,8 @@ class Tile(Raster, Edge, Layer):
             self.nodata = self.metadata['nodatavalue']
         else:
             self.nodata = None
-            warnings.warn("No-data value is not defined")
+            warnings.warn("No-data value is not defined",
+                          stacklevel=2)
 
         Edge.__init__(self,
                       filename=edgefile,
@@ -389,33 +400,44 @@ class Tile(Raster, Edge, Layer):
 
     def resample(self,
                  other,
-                 alg='bilinear'):
+                 alg='near'):
         """
-        Re-sample tile array of other to match tile array of self.
+        Re-sample tile other to match tile of self.
 
         :param other: The other tile to match the spatial resolution with
         :param alg: Interpolation algorithm : { near, bilinear, cubic (default) }
 
         :returns: numpy array
         """
-        alg_options = {'near': 0, 'bilinear': 1, 'cubic': 2}
+        if self.metadata['ncols'] != other.metadata['ncols'] or \
+                self.metadata['nrows'] != other.metadata['nrows']:
 
-        zoom_factor = [1,
-                       float(self.metadata['nrows'])/float(other.metadata['nrows']),
-                       float(self.metadata['ncols'])/float(other.metadata['ncols'])]
+            alg_options = {'near': 0, 'bilinear': 1, 'cubic': 2}
 
-        out_array = zoom(input=other.array,
-                         zoom=zoom_factor,
-                         order=alg_options[alg],
-                         prefilter=True)
+            zoom_factor = [1,
+                           float(self.metadata['nrows'])/float(other.metadata['nrows']),
+                           float(self.metadata['ncols'])/float(other.metadata['ncols'])]
 
-        return out_array
+            out_shape = (np.array(other.array.shape) * np.array(zoom_factor)).astype(np.int16)
+
+            other.array = resize(other.array,
+                                 output_shape=out_shape,
+                                 order=alg_options[alg])
+
+            other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
+                other.array.shape
+
+            other.metadata['transform'] = self.metadata['transform']
+
+            other.void_loc = np.where(other.array == other.nodata)
+
+        return other
 
     def __add__(self,
-                other):
+                second):
         """
         Method to add one Tile to another
-        :param other: Other tile object or number
+        :param second: second tile or number in the equation
         :returns: Tile object
         """
 
@@ -423,32 +445,26 @@ class Tile(Raster, Edge, Layer):
 
         result.__dict__.update(self.__dict__)
 
-        if isinstance(other, Tile):
-            if self.metadata['ncols'] != other.metadata['ncols'] or \
-                    self.metadata['nrows'] != other.metadata['nrows']:
-                other.array = self.resample(other)
-                other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
-                    other.array.shape
-                result.array = self.array + other.array
+        if isinstance(second, Tile):
+            if self.metadata['ncols'] != second.metadata['ncols'] or \
+                    self.metadata['nrows'] != second.metadata['nrows']:
 
-        elif type(other) in (float, int):
-            result.array = self.array + other
+                raise ProcessingError('Unequal tile sizes')
+            else:
+                result.array = self.array + second.array
+
+        elif type(second) in (float, int):
+            result.array = self.array + second
         else:
             raise ProcessingError("Unsupported data type for add")
-
-        if self.void_loc is not None:
-            result.array[self.void_loc] = self.nodata
-
-        if other.void_loc is not None:
-            result.array[self.void_loc] = self.nodata
 
         return result
 
     def __sub__(self,
-                other):
+                second):
         """
         Method to subtract one Tile from another
-        :param other: Other tile object or number
+        :param second: second tile or number in the equation
         :returns: Tile object
         """
 
@@ -456,26 +472,39 @@ class Tile(Raster, Edge, Layer):
 
         result.__dict__.update(self.__dict__)
 
-        if isinstance(other, Tile):
-            if self.metadata['ncols'] != other.metadata['ncols'] or \
-                    self.metadata['nrows'] != other.metadata['nrows']:
-                other.array = self.resample(other)
-                other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
-                    other.array.shape
-                result.array = self.array - other.array
+        if isinstance(second, Tile):
+            if self.metadata['ncols'] != second.metadata['ncols'] or \
+                    self.metadata['nrows'] != second.metadata['nrows']:
+                raise ProcessingError('Unequal tile sizes')
+            else:
+                result.array = self.array - second.array
 
-        elif type(other) in (float, int):
-            result.array = self.array - other
+        elif type(second) in (float, int):
+            result.array = self.array - second
         else:
             raise ProcessingError("Unsupported data type for subtract")
 
-        if self.void_loc is not None:
-            result.array[self.void_loc] = self.nodata
-
-        if other.void_loc is not None:
-            result.array[self.void_loc] = self.nodata
-
         return result
+
+    @classmethod
+    def void_tile(cls,
+                  first,
+                  second):
+        """
+        Method to subtract one Tile from another
+        :param first: first tile in the equation
+        :param second: second tile or number in the equation
+        :returns: Tile object
+        """
+        tile = cls()
+        tile.__dict__.update(first.__dict__)
+        tile.array = np.zeros(first.array.shape, dtype=np.uint8)
+        tile.array[np.where(first.array == first.nodata)] += 1
+        tile.array[np.where(second.array == second.nodata)] += 1
+
+        tile.void_loc = np.where(tile.array == 2)
+
+        return tile
 
     def copy_voids(self,
                    other):
@@ -484,15 +513,12 @@ class Tile(Raster, Edge, Layer):
         :param other: Other tile object
         :returns: None
         """
-        result = Tile()
 
         if isinstance(other, Tile):
             if self.metadata['ncols'] != other.metadata['ncols'] or \
                     self.metadata['nrows'] != other.metadata['nrows']:
                 raise ProcessingError("Unequal tile sizes for copy")
             else:
-                result.__dict__.update(other.__dict__)
-
                 self.array[other.void_loc] = self.nodata
         else:
             raise ProcessingError("Unsupported data type for copy")
@@ -506,7 +532,8 @@ class Tile(Raster, Edge, Layer):
             self.load_edges(edgefile)
 
         if self.edges is None:
-            warnings.warn("Edge dictionary or file is missing in input. No edges loaded.")
+            warnings.warn("Edge dictionary or file is missing in input. No edges loaded.",
+                          stacklevel=2)
             return
 
         else:
