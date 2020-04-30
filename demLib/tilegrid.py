@@ -1,6 +1,6 @@
 from scipy.interpolate import interp1d
 from skimage.transform import resize
-from scipy.ndimage import zoom
+from scipy.ndimage import gaussian_filter
 from demLib.common import Common, File
 from demLib.spatial import Raster
 from demLib.exceptions import AxisError, FileNotFound, FieldError, ProcessingError
@@ -97,6 +97,11 @@ class Layer(object):
                         out_arr[np.arange(*block)] = f(loc_array[np.arange(*block)])
                     else:
                         out_arr[np.arange(*block)] = f(np.arange(*block))
+                else:
+                    if block[0] != nodata:
+                        out_arr[block[0]: -1] = out_arr[block[0]]
+                    elif block[1] != nodata:
+                        out_arr[0: block[1]] = out_arr[block[1]]
 
         return out_arr
 
@@ -134,7 +139,9 @@ class Layer(object):
                                 loc_array=loc_array)
 
     def fill(self,
-             bidirectional=True):
+             bidirectional=True,
+             smooth=False,
+             sigma=3):
         """
         Method to fill voids in 2D array by
             Filling voids in 1D array along x axis
@@ -162,6 +169,12 @@ class Layer(object):
         y_remain_voids = np.where(yfilled_arr == self.nodata)
 
         mean_arr = (xfilled_arr + yfilled_arr)/2.0
+
+        if smooth:
+            smoothed_mean_arr = gaussian_filter(mean_arr,
+                                                sigma=sigma)
+            void_loc = np.where(self.array == self.nodata)
+            mean_arr[void_loc] = smoothed_mean_arr[void_loc]
 
         if bidirectional:
             mean_arr[x_remain_voids] = self.nodata

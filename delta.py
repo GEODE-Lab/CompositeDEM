@@ -12,14 +12,13 @@ Example usage:
 > python delta.py /tmp/rank_list_file_h001_v001.txt /tmp/output_tile_h001_v001.tif
 
 Example text in rank list text file:
- 
+
 /tmp/thisIsVeryFirstDEM_tileH001V001.tif
 /tmp/TotallySecondDEMFile_tile_h001_v001.tif
 /tmp/tremendouslyBestly_third_tile_h001__v001.tif
 /tmp/OhMyGod__ItsFourth_tile_h__001_V_001.tif
 
 """
-
 
 if __name__ == '__main__':
 
@@ -44,33 +43,39 @@ if __name__ == '__main__':
 
     # loop over the rest of tiles
     for indx in range(len(rank_list) - 1):
-
         # extract next tile
         nxt_rank_tile = Tile(filename=rank_list[indx + 1])
 
         Common.cprint('- {} ---- {} -'.format(rank_list[indx],
                                               rank_list[indx + 1]))
 
+        # resample next tile to match previous tile
         nxt_rank_tile = tile.resample(nxt_rank_tile)
 
+        # tile to store common voids
         void_tile = tile.void_tile(tile, nxt_rank_tile)
 
-        nxt_rank_tile.fill(False)
+        # fill voids and smooth the linear interpolations
+        nxt_rank_tile.fill(True, True, 20)
+
         # subtract previous tile from the next tile
         # voids from the tiles are copied to the difference tile
         tile_diff = tile - nxt_rank_tile
 
+        # copy voids from the first tile
         tile_diff.copy_voids(tile)
 
         # update the difference tile using edge file if available
         # if no edge file is available this step will warn and not do anything
         tile_diff.update_array(edge_file)
 
-        # fill the voids in the difference tile
+        # copy voids from common voids tile
+        tile_diff.copy_voids(void_tile)
+
+        # fill the voids in the difference tile and smooth the filling
         # if the previous step did not load any tile edges, then
         # the void interpolation will not fill voids on the edges
-        tile_diff.copy_voids(void_tile)
-        tile_diff.fill()
+        tile_diff.fill(True, True, 5)
 
         # add the next tile to the difference tile,
         # after all the voids are filled
