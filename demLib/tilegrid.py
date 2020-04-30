@@ -159,7 +159,9 @@ class Layer(object):
                                           self.nodata)
 
         x_remain_voids = np.where(xfilled_arr == self.nodata)
+        # print(x_remain_voids[0].shape)
         y_remain_voids = np.where(yfilled_arr == self.nodata)
+        # print(y_remain_voids[0].shape)
 
         mean_arr = (xfilled_arr + yfilled_arr)/2.0
 
@@ -411,18 +413,34 @@ class Tile(Raster, Edge, Layer):
         """
         if self.metadata['ncols'] != other.metadata['ncols'] or \
                 self.metadata['nrows'] != other.metadata['nrows']:
-
+            # other = self.resample(other)
             alg_options = {'near': 0, 'bilinear': 1, 'cubic': 2}
 
             zoom_factor = [1,
                            float(self.metadata['nrows'])/float(other.metadata['nrows']),
                            float(self.metadata['ncols'])/float(other.metadata['ncols'])]
 
+            # output_size = self.metadata['nrows'], self.metadata['ncols']
+
             out_shape = (np.array(other.array.shape) * np.array(zoom_factor)).astype(np.int16)
 
+            # other.array[np.where(other.array == other.nodata)] = np.NaN
+            # print(other.array.shape)
+            # print(out_shape)
+            '''
+            other.array = zoom(input=other.array,
+                               zoom=zoom_factor,
+                               order=alg_options[alg],
+                               mode='nearest',
+                               prefilter=True)
+            '''
             other.array = resize(other.array,
                                  output_shape=out_shape,
                                  order=alg_options[alg])
+
+            # print(other.array.shape)
+
+            # other.array[np.where(other.array == np.NaN)] = other.nodata
 
             other.metadata['nbands'], other.metadata['nrows'], other.metadata['ncols'] = \
                 other.array.shape
@@ -448,7 +466,7 @@ class Tile(Raster, Edge, Layer):
         if isinstance(second, Tile):
             if self.metadata['ncols'] != second.metadata['ncols'] or \
                     self.metadata['nrows'] != second.metadata['nrows']:
-
+                # other = self.resample(other)
                 raise ProcessingError('Unequal tile sizes')
             else:
                 result.array = self.array + second.array
@@ -457,6 +475,12 @@ class Tile(Raster, Edge, Layer):
             result.array = self.array + second
         else:
             raise ProcessingError("Unsupported data type for add")
+
+        # if self.void_loc is not None:
+        #    result.array[self.void_loc] = self.nodata
+
+        # if other.void_loc is not None:
+        #    result.array[self.void_loc] = self.nodata
 
         return result
 
@@ -477,12 +501,21 @@ class Tile(Raster, Edge, Layer):
                     self.metadata['nrows'] != second.metadata['nrows']:
                 raise ProcessingError('Unequal tile sizes')
             else:
+                # other = self.resample(other)
+                # other.write_raster('D:/temp/dem_tiles/other_after_zoom5.tif')
+                # exit()
                 result.array = self.array - second.array
 
         elif type(second) in (float, int):
             result.array = self.array - second
         else:
             raise ProcessingError("Unsupported data type for subtract")
+
+        # if self.void_loc is not None:
+        #    result.array[self.void_loc] = self.nodata
+
+        # if other.void_loc is not None:
+        #    result.array[self.void_loc] = self.nodata
 
         return result
 
