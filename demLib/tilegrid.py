@@ -1,6 +1,5 @@
 from scipy.interpolate import interp1d
 from skimage.transform import resize
-from sklearn.impute import SimpleImputer
 from scipy.ndimage import gaussian_filter
 from demLib.common import Common, File
 from demLib.spatial import Raster
