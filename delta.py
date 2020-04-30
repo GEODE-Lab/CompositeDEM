@@ -21,14 +21,8 @@ Example text in rank list text file:
 """
 
 if __name__ == '__main__':
-    '''
+
     script, rank_list_file, outfile = sys.argv
-    '''
-
-    num = 15
-
-    rank_list_file = 'D:/temp/dem_tiles/list1.txt'
-    outfile = 'D:/temp/dem_tiles/output{}.tif'.format(str(num))
 
     Common.cprint('===============\nRank list file: {}\n'.format(rank_list_file))
 
@@ -47,8 +41,6 @@ if __name__ == '__main__':
     tile = Tile(filename=rank_list[0])
     edge_file = ''.join(rank_list[0].split('.')[:-1] + ['.edge'])
 
-    print(tile.metadata)
-
     # loop over the rest of tiles
     for indx in range(len(rank_list) - 1):
         # extract next tile
@@ -56,48 +48,34 @@ if __name__ == '__main__':
 
         Common.cprint('- {} ---- {} -'.format(rank_list[indx],
                                               rank_list[indx + 1]))
-        print(nxt_rank_tile.metadata)
 
+        # resample next tile to match previous tile
         nxt_rank_tile = tile.resample(nxt_rank_tile)
 
+        # tile to store common voids
         void_tile = tile.void_tile(tile, nxt_rank_tile)
-        # void_tile.write_raster('D:/temp/dem_tiles/void_tile{}.tif'.format(str(num)))
-        # exit()
 
-        nxt_rank_tile.fill(False)
-        # nxt_rank_tile.write_raster('D:/temp/dem_tiles/nxt_tile_filled{}.tif'.format(str(num)))
-        # exit()
-
-        # nxt_rank_tile.array[nxt_rank_tile.void_loc] = 0.0
+        # fill voids and smooth the linear interpolations
+        nxt_rank_tile.fill(True, True, 20)
 
         # subtract previous tile from the next tile
         # voids from the tiles are copied to the difference tile
         tile_diff = tile - nxt_rank_tile
 
-        # tile_diff.write_raster('D:/temp/dem_tiles/tile_diff_before_filling{}.tif'.format(str(num)))
-        # exit()
-
-        print(tile_diff.array.shape)
-        print(tile.array.shape)
-        print(nxt_rank_tile.array.shape)
-
+        # copy voids from the first tile
         tile_diff.copy_voids(tile)
-
-        # tile_diff.write_raster('D:/temp/dem_tiles/diff_with_voids{}.tif'.format(str(num)))
 
         # update the difference tile using edge file if available
         # if no edge file is available this step will warn and not do anything
         tile_diff.update_array(edge_file)
 
-        # fill the voids in the difference tile
+        # copy voids from common voids tile
+        tile_diff.copy_voids(void_tile)
+
+        # fill the voids in the difference tile and smooth the filling
         # if the previous step did not load any tile edges, then
         # the void interpolation will not fill voids on the edges
-        tile_diff.copy_voids(void_tile)
-        tile_diff.fill()
-
-        # tile_diff.write_raster('D:/temp/dem_tiles/diff_with_voids_filled{}.tif'.format(str(num)))
-
-        # exit()
+        tile_diff.fill(True, True, 5)
 
         # add the next tile to the difference tile,
         # after all the voids are filled
