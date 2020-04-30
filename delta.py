@@ -51,9 +51,16 @@ if __name__ == '__main__':
         Common.cprint('- {} ---- {} -'.format(rank_list[indx],
                                               rank_list[indx + 1]))
 
+        nxt_rank_tile = tile.resample(nxt_rank_tile)
+
+        void_tile = tile.void_tile(tile, nxt_rank_tile)
+
+        nxt_rank_tile.fill(False)
         # subtract previous tile from the next tile
         # voids from the tiles are copied to the difference tile
         tile_diff = tile - nxt_rank_tile
+
+        tile_diff.copy_voids(tile)
 
         # update the difference tile using edge file if available
         # if no edge file is available this step will warn and not do anything
@@ -62,6 +69,7 @@ if __name__ == '__main__':
         # fill the voids in the difference tile
         # if the previous step did not load any tile edges, then
         # the void interpolation will not fill voids on the edges
+        tile_diff.copy_voids(void_tile)
         tile_diff.fill()
 
         # add the next tile to the difference tile,
@@ -69,7 +77,7 @@ if __name__ == '__main__':
         tile = tile_diff + nxt_rank_tile
 
         # copy voids from the next tile to the output
-        tile.copy_voids(nxt_rank_tile)
+        tile.copy_voids(void_tile)
 
         # this edge file will be used in the next loop
         edge_file = ''.join(rank_list[indx + 1].split('.')[:-1] + ['.edge'])
