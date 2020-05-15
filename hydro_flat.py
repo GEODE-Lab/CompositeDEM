@@ -5,9 +5,10 @@ from demLib.spatial import Raster, Vector
 
 '''
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
+
 usage: hydro_flat.py [-h] [--percentile PERCENTILE] [--min_pixels MIN_PIXELS]
                      raster_infile raster_outfile hydro_shpfile
-Script for hydro-flattening water bodies
+
 positional arguments:
   raster_infile         Input raster file name
   raster_outfile        Output raster file name
@@ -15,11 +16,11 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --percentile PERCENTILE
-                        Percentile for flattened output (default: 10)
+                        Percentile value for final elevation of flat surface (default: 10)
   --min_pixels MIN_PIXELS
-                        Minimum pixels for flattening (default: 25)
-percentile clip: Percentile value for final elevation of flat surface
-min pixels: Minimum number of raster pixels inside a feature below which no flattening is desired
+                        Minimum number of raster pixels inside a feature below which
+                        no flattening is desired (default: 25)
+
 example:
 hydro_flat.py  --percentile 10 --min_pixels 25 /data/astgdem.tif /data/astgdem_hydflat.tif /data/lakes.shp
 '''
@@ -90,11 +91,12 @@ if __name__ == '__main__':
     parser.add_argument("--percentile",
                         default=10,
                         type=int,
-                        help="Percentile for flattened output (default: 10)")
+                        help="Percentile value for final elevation of flat surface (default: 10)")
     parser.add_argument("--min_pixels",
                         default=25,
                         type=int,
-                        help="Minimum pixels for flattening (default: 25)")
+                        help="Minimum number of raster pixels inside a feature below which " + \
+                        "no flattening is desired (default: 25)")
 
     args = parser.parse_args()
 
