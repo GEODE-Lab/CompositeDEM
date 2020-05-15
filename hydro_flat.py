@@ -1,5 +1,6 @@
 import sys
 import osr
+import argparse
 from demLib.spatial import Raster, Vector
 
 '''
@@ -66,18 +67,35 @@ def main(raster_name,
 
 if __name__ == '__main__':
 
-    raster_file, raster_out_file, hydro_shape_file = sys.argv[1:4]
+    parser = argparse.ArgumentParser(description="Script for hydro-flattening water bodies.")
 
-    if len(sys.argv) > 4:
-        percentile = sys.argv[4]
-    else:
-        percentile = 10  # default
+    parser.add_argument("raster_infile",
+                        type=str,
+                        help="Input raster file name")
+    parser.add_argument("raster_outfile",
+                        type=str,
+                        help="Output raster file name")
+    parser.add_argument("hydro_shpfile",
+                        type=str,
+                        help="Shapefile of water bodies")
 
-    if len(sys.argv) > 5:
-        min_pixels = sys.argv[5]
-    else:
-        min_pixels = 25  # default
+    parser.add_argument("--percentile",
+                        default=10,
+                        type=int,
+                        help="Percentile for flattened output (default: 10)")
+    parser.add_argument("--min_pixels",
+                        default=25,
+                        type=int,
+                        help="Minimum pixels for flattening (default: 25)")
 
-    print('\nHydro-flattening - {}\n'.format(raster_file))
-    main(raster_file, raster_out_file, hydro_shape_file, percentile, min_pixels)
-    print('\n----------------------------------------------\n Done!\n')
+    args = parser.parse_args()
+
+    sys.stdout.write('\nHydro-flattening - {}\n'.format(args.raster_infile))
+
+    main(args.raster_infile,
+         args.raster_outfile,
+         args.hydro_shpfile,
+         args.percentile,
+         args.min_pixels)
+
+    sys.stdout.write('\n----------------------------------------------\n Done!\n')
