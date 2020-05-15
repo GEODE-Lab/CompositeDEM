@@ -14,7 +14,7 @@ percentile clip: Percentile value for final elevation of flat surface
 min pixels: Minimum number of raster pixels inside a feature below which no flattening is desired
 
 example:
-hydro_flat.py "/temp/dem/astgdem.tif" "/temp/dem/astgdem_hydro_flattened.tif" "/temp/dem/lakes/lakes.shp" 10
+hydro_flat.py "astgdem.tif" "astgdem_hydflat.tif" "lakes.shp" --percentile 10 --min_pixels 25
 '''
 
 
