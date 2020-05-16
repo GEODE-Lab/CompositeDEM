@@ -1,7 +1,7 @@
 import sys
 import osr
-import argparse
 from demLib.spatial import Raster, Vector
+from demLib.parser import HydroParser
 
 '''
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
@@ -13,13 +13,16 @@ positional arguments:
   raster_infile         Input raster file name
   raster_outfile        Output raster file name
   hydro_shpfile         Shapefile of water bodies
+  
 optional arguments:
   -h, --help            show this help message and exit
-  --percentile PERCENTILE
+  --percentile, -p PERCENTILE
                         Percentile value for final elevation of flat surface (default: 10)
-  --min_pixels MIN_PIXELS
-                        Minimum number of raster pixels inside a feature below which
-                        no flattening is desired (default: 25)
+  --min_pixels, -minp MIN_PIXELS
+                        Minimum number of raster pixels inside a feature below which no
+                        flattening is desired (default: 25)
+  --verbose, -v VERBOSE
+                        Display verbosity (default: False)
                         
 example:
 hydro_flat.py  --percentile 10 --min_pixels 25 /data/astgdem.tif /data/astgdem_hydflat.tif /data/lakes.shp
@@ -85,34 +88,7 @@ def main(raster_name,
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Script to flatten noisy lake surfaces in a raster DEM"
-                                                 " (.tif) using a boundary shapefile of the lakes. ")
-
-    parser.add_argument("raster_infile",
-                        type=str,
-                        help="Input raster file name")
-    parser.add_argument("raster_outfile",
-                        type=str,
-                        help="Output raster file name")
-    parser.add_argument("hydro_shpfile",
-                        type=str,
-                        help="Shapefile of water bodies")
-
-    parser.add_argument("--percentile", "-p",
-                        default=10,
-                        type=int,
-                        help="Percentile value for final elevation of flat surface (default: 10)")
-    parser.add_argument("--min_pixels", "-minp",
-                        default=25,
-                        type=int,
-                        help="Minimum number of raster pixels inside a feature below which " + \
-                        "no flattening is desired (default: 25)")
-    parser.add_argument("--verbose", "-v",
-                        default=True,
-                        type=bool,
-                        help='Display verbosity')
-
-    args = parser.parse_args()
+    args = HydroParser().parser.parse_args()
 
     if args.verbose:
         sys.stdout.write('\nHydro-flattening - {}\n'.format(args.raster_infile))
