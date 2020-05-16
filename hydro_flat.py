@@ -1,7 +1,7 @@
 import sys
 import osr
-import argparse
 from demLib.spatial import Raster, Vector
+from demLib.parser import HydroParser
 
 '''
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
@@ -13,13 +13,16 @@ positional arguments:
   raster_infile         Input raster file name
   raster_outfile        Output raster file name
   hydro_shpfile         Shapefile of water bodies
+
 optional arguments:
   -h, --help            show this help message and exit
-  --percentile PERCENTILE
+  --percentile, -p PERCENTILE
                         Percentile value for final elevation of flat surface (default: 10)
-  --min_pixels MIN_PIXELS
-                        Minimum number of raster pixels inside a feature below which
-                        no flattening is desired (default: 25)
+  --min_pixels, -minp MIN_PIXELS
+                        Minimum number of raster pixels inside a feature below which no
+                        flattening is desired (default: 25)
+  --verbose, -v VERBOSE
+                        Display verbosity (default: False)
 
 example:
 hydro_flat.py  --percentile 10 --min_pixels 25 /data/astgdem.tif /data/astgdem_hydflat.tif /data/lakes.shp
@@ -30,8 +33,8 @@ def main(raster_name,
          out_raster_name,
          hydro_file,
          pctl=10,
-         min_pixels=25):
-
+         min_pixels=25,
+         verbose=False):
     """
     Main function to run hydro flattening
     :param raster_name: Raster filename with full path
@@ -39,6 +42,8 @@ def main(raster_name,
     :param hydro_file: Shapefile of water body boundaries
     :param pctl: Percentile value to substitute (default: 10)
     :param min_pixels: Number of minimum pixels for extraction (default: 25)
+    :param verbose: Display verbosity (Default: False)
+
     :return: None
     """
 
@@ -51,15 +56,22 @@ def main(raster_name,
     hydro_vector = Vector(filename=hydro_file)
 
     raster_bounds = raster.get_bounds(bounds_vector=True)
-    print('Raster bounds vector: {}'.format(raster_bounds))
+
+    if verbose:
+        sys.stdout.write('Raster bounds vector: {}\n'.format(raster_bounds))
 
     # find intersecting tile features
     hydro_vector_reproj = hydro_vector.reproject(destination_spatial_ref=raster_spref,
                                                  _return=True)
-    print(hydro_vector_reproj)
+    if verbose:
+        sys.stdout.write(hydro_vector_reproj)
+        sys.stdout.write("\n")
 
     intersect_vector = hydro_vector_reproj.get_intersecting_vector(raster_bounds)
-    print(intersect_vector)
+
+    if verbose:
+        sys.stdout.write(intersect_vector)
+        sys.stdout.write("\n")
 
     # replace values by percentile
     result = raster.vector_extract(intersect_vector,
@@ -75,32 +87,10 @@ def main(raster_name,
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Script to flatten noisy lake surfaces in a raster DEM"
-                                                 " (.tif) using a boundary shapefile of the lakes. ")
+    args = HydroParser().parser.parse_args()
 
-    parser.add_argument("raster_infile",
-                        type=str,
-                        help="Input raster file name")
-    parser.add_argument("raster_outfile",
-                        type=str,
-                        help="Output raster file name")
-    parser.add_argument("hydro_shpfile",
-                        type=str,
-                        help="Shapefile of water bodies")
-
-    parser.add_argument("--percentile",
-                        default=10,
-                        type=int,
-                        help="Percentile value for final elevation of flat surface (default: 10)")
-    parser.add_argument("--min_pixels",
-                        default=25,
-                        type=int,
-                        help="Minimum number of raster pixels inside a feature below which " + \
-                        "no flattening is desired (default: 25)")
-
-    args = parser.parse_args()
-
-    sys.stdout.write('\nHydro-flattening - {}\n'.format(args.raster_infile))
+    if args.verbose:
+        sys.stdout.write('\nHydro-flattening - {}\n'.format(args.raster_infile))
 
     main(args.raster_infile,
          args.raster_outfile,
@@ -108,4 +98,5 @@ if __name__ == '__main__':
          args.percentile,
          args.min_pixels)
 
-    sys.stdout.write('\n----------------------------------------------\n Done!\n')
+    if args.verbose:
+        sys.stdout.write('\n----------------------------------------------\n Done!\n')
