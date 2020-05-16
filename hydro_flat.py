@@ -4,16 +4,18 @@ from demLib.spatial import Raster, Vector
 from demLib.parser import HydroParser
 
 '''
-Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the lakes. 
+Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the
+lakes.
 
-usage: hydro_flat.py [-h] [--percentile PERCENTILE] [--min_pixels MIN_PIXELS]
+usage: hydro_flat.py [-h] [--percentile PERCENTILE] [--min_pixels MIN_PIXELS] [--verbose]
                      raster_infile raster_outfile hydro_shpfile
-                     
+
+
 positional arguments:
   raster_infile         Input raster file name
   raster_outfile        Output raster file name
   hydro_shpfile         Shapefile of water bodies
-  
+
 optional arguments:
   -h, --help            show this help message and exit
   --percentile, -p PERCENTILE
@@ -21,11 +23,10 @@ optional arguments:
   --min_pixels, -minp MIN_PIXELS
                         Minimum number of raster pixels inside a feature below which no
                         flattening is desired (default: 25)
-  --verbose, -v VERBOSE
-                        Display verbosity (default: False)
+  --verbose, -v         Display verbosity (default: False)
                         
 example:
-hydro_flat.py  --percentile 10 --min_pixels 25 /data/astgdem.tif /data/astgdem_hydflat.tif /data/lakes.shp
+python hydro_flat.py -v -p 10 -minp 25 /data/astgdem.tif /data/astgdem_hydflat.tif /data/lakes.shp
 '''
 
 
