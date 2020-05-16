@@ -29,8 +29,7 @@ class HydroParser(object):
                                  help="Minimum number of raster pixels inside a feature below which " + \
                                       "no flattening is desired (default: 25)")
         self.parser.add_argument("--verbose", "-v",
-                                 default=True,
-                                 type=bool,
+                                 action="store_true",
                                  help='Display verbosity (default: False)')
 
     def __repr__(self):
