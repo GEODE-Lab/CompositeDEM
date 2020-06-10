@@ -638,7 +638,6 @@ class Vector(object):
                                                          geom_type=geom_type)
 
                 fid = ogr.FieldDefn('fid', ogr.OFTInteger)
-                fid.SetPrecision()
 
                 self.layer.CreateField(fid)
                 self.fields = [fid]
