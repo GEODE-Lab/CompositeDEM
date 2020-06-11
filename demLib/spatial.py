@@ -389,6 +389,18 @@ class Vector(object):
     """
     Class for vector objects
     """
+    OGR_FIELD_DEF = {
+        'int': ogr.OFTInteger,
+        'integer': ogr.OFTInteger,
+        'long': ogr.OFTInteger,
+        'float': ogr.OFTReal,
+        'double': ogr.OFTReal,
+        'str': ogr.OFTString,
+        'string': ogr.OFTString,
+        'bool': ogr.OFTInteger,
+        'nonetype': ogr.OFSTNone,
+        'none': ogr.OFSTNone
+    }
 
     def __init__(self,
                  filename=None,
@@ -587,10 +599,12 @@ class Vector(object):
                 res = self.spref.ImportFromWkt(spref_str)
 
                 self.layer = self.datasource.CreateLayer('mem_layer',
-                                                          srs=self.spref,
-                                                          geom_type=geom_type)
+                                                         srs=self.spref,
+                                                         geom_type=geom_type)
+
                 fid = ogr.FieldDefn('fid', ogr.OFTInteger)
-                fid.SetPrecision(9)
+                fid.SetPrecision()
+
                 self.layer.CreateField(fid)
                 self.fields = [fid]
 
@@ -695,6 +709,34 @@ class Vector(object):
                         val = None
 
             return Vector.ogr_data_type(val)
+
+    def add_field(self,
+                  field_name,
+                  field_type,
+                  **kwargs):
+
+        """
+        Function to add a field to a Vector object
+        :param field_name: Name of the field (string)
+        :param field_type: Type of the field
+        :param kwargs: Keyword arguments: 1) precision: to be set when field type is float
+                                          2) width: tp be set when field type is string
+        :returns: None
+        """
+
+        if field_type in self.OGR_FIELD_DEF:
+            field_type = self.OGR_FIELD_DEF[field_type]
+
+        field = ogr.FieldDefn(field_name, field_type)
+
+        if 'precision' in kwargs and field_type in (ogr.OFTReal, ogr.OFTInteger):
+            field.SetPrecision(kwargs['precision'])
+
+        if 'width' in kwargs and field_type == ogr.OFTString:
+            field.SetWidth(kwargs['width'])
+
+        self.layer.CreateField(field)
+        self.fields += field
 
     def add_feat(self,
                  geom,
