@@ -171,6 +171,8 @@ class Raster(object):
         else:
             out_arr = None
 
+        return_list = []
+
         # loop through all vector features
         for i in range(0, vector.nfeat):
 
@@ -239,26 +241,31 @@ class Raster(object):
             # extract pixels other than the no-data value
             pixel_vals = list(val for val in temp_vals if val != self.metadata['nodatavalue'])
 
+            if return_values:
+                return_list += pixel_vals
             # replace only if the number of pixels is greater than min value
-            if len(pixel_vals) < min_pixels:
-                pctl_val = None
-
             else:
-                # calculate percentile value
-                pctl_val = np.percentile(pixel_vals, pctl)
+                if len(pixel_vals) < min_pixels:
+                    pctl_val = None
+                else:
+                    # calculate percentile value
+                    pctl_val = np.percentile(pixel_vals, pctl)
 
-                # if replaced specified, replace pixels in the raster array
-                if replace:
-                    for loc in pixel_xyz_loc:
-                        out_arr[loc] = pctl_val
+                    # if replaced specified, replace pixels in the raster array
+                    if replace:
+                        for loc in pixel_xyz_loc:
+                            out_arr[loc] = pctl_val
 
-                    self.array = out_arr
+                        self.array = out_arr
 
-            extract_list.append(pctl_val)
+                extract_list.append(pctl_val)
 
         temp_layer = ras_ds = temp_datasource = None
 
-        return extract_list
+        if return_values:
+            return return_list
+        else:
+            return extract_list
 
     def get_bounds(self,
                    bounds=False,
