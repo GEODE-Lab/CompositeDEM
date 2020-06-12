@@ -111,6 +111,8 @@ class Common(object):
             else:
                 raise RuntimeError('Keyword not implemented')
 
+        return out_list
+
     @staticmethod
     def get_memory_usage():
         """
