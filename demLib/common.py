@@ -6,6 +6,7 @@ import psutil
 import fnmatch
 import operator
 import itertools
+import numpy as np
 from functools import wraps
 from itertools import takewhile, repeat
 
@@ -84,6 +85,31 @@ class Common(object):
         for _, group in itertools.groupby(enumerate(sorted(arr)), key=lambda x: x[0] - x[1]):
             grouped_elements.append(sorted(list(map(operator.itemgetter(1), group))))
         return grouped_elements
+
+    @staticmethod
+    def get_stats(x, stat_type='mean'):
+        """
+        Method to extract stats on a list
+        :param x: List of numbers
+        :param stat_type: Type or list of type of stats to be performed: mean, median, pctl_xx, std_dev
+        """
+        if type(stat_type) not in (list, tuple):
+            stat_type = [stat_type]
+
+        out_list = []
+
+        for stat in stat_type:
+            if stat == 'mean':
+                out_list.append(np.mean(x))
+            elif stat == 'median':
+                out_list.append(np.median(x))
+            elif stat == 'std_dev':
+                out_list.append(np.std(x))
+            elif 'pctl' in stat:
+                pctl = int(stat.split('_')[1])
+                out_list.append(np.percentile(x, [pctl], interpolation='nearest'))
+            else:
+                raise RuntimeError('Keyword not implemented')
 
     @staticmethod
     def get_memory_usage():
