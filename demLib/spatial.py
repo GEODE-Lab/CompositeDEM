@@ -149,7 +149,8 @@ class Raster(object):
                        pctl=25,
                        band_index=0,
                        min_pixels=25,
-                       replace=False):
+                       replace=False,
+                       return_values=False):
 
         """
         Method to extract percentile values from a raster based on vector bounds and
@@ -159,6 +160,7 @@ class Raster(object):
         :param band_index: Which band to operate on
         :param min_pixels: Number of minimum pixels for extraction (default: 25)
         :param replace: If the raster pixels should be replaced by the calculated percentile value
+        :param return_values: If the method should return all pixel values as list
         :return: List of percentiles by vector features
         """
 
