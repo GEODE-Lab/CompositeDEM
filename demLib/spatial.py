@@ -626,21 +626,10 @@ class Vector(object):
         """
         val = type(x).__name__.lower()
 
-        val_dict = {
-            'int': ogr.OFTInteger,
-            'long': ogr.OFTInteger,
-            'float': ogr.OFTReal,
-            'double': ogr.OFTReal,
-            'str': ogr.OFTString,
-            'bool': ogr.OFTInteger,
-            'nonetype': ogr.OFSTNone,
-            'none': ogr.OFSTNone,
-        }
-
         try:
-            return val_dict[val]
+            return Vector.OGR_FIELD_DEF[val]
         except (KeyError, NameError):
-            return val_dict['nonetype']
+            return Vector.OGR_FIELD_DEF['nonetype']
 
     @staticmethod
     def ogr_geom_type(x):
