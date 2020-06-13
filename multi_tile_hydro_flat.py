@@ -1,15 +1,39 @@
 from demLib import Raster, Vector, Common
+from demLib.parser import HydroParserMulti
 
+"""
+Script to flatten noisy lake surfaces across rasters spanned by large lakes using a boundary
+shapefile of the lakes.
+
+positional arguments:
+  multi_lake_tiles      Shapefile containing lake polygons spanning multiple tiles
+  tile_file             Shapefile containing tile footprints (unbuffered)
+  out_shpfile           Output shapefile with multi-tile lakes and the tiles they cross as attributes
+  raster_file_dir       Folder containing raster tiles with filenames corresponding to tile grid ID
+                        with a .tif extension
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --buffer BUFFER, -b BUFFER
+                        Distance in projection coords to buffer the tile boundary (default: 2000 for
+                        ABoVE projection)
+  --max_ntiles MAX_NTILES, -m MAX_NTILES
+                        Maximum number of tiles spanned by a lake, number of tile-name attributes
+                        (default: 69)
+  --verbose, -v         Display verbosity (default: False)
+"""
 
 if __name__ == '__main__':
 
-    multi_lake_tiles = 'multi_lake_tiles.shp'
-    tile_file = 'cgrid_tile_file.shp'
-    out_shpfile = 'multi_tile_lake_summary.shp'
-    raster_file_dir = 'raster_file_dir/'
+    args = HydroParserMulti().parser.parse_args()
 
-    buffer = 2000
-    max_ntiles = 69
+    multi_lake_tiles = args.multi_lake_tiles
+    tile_file = args.tile_file
+    out_shpfile = args.out_shpfile
+    raster_file_dir = args.raster_file_dir
+
+    buffer = args.buffer
+    max_ntiles = args.max_ntiles
 
     stats = ['mean', 'std_dev'] + list('pctl_{}'.format(str(i*5)) for i in range(0, 21))
 
