@@ -412,6 +412,16 @@ class Vector(object):
         'geometry': 0,
         'no geometry': 100
     }
+    OGR_TYPE_DEF = {
+        1: 'point',
+        2: 'linestring',
+        3: 'polygon',
+        4: 'multipoint',
+        5: 'multilinestring',
+        6: 'multipolygon',
+        0: 'geometry',
+        100: 'no geometry',
+    }
 
     def __init__(self,
                  filename=None,
@@ -659,18 +669,9 @@ class Vector(object):
                 return None
 
         elif type(x).__name__ == 'int' or type(x).__name__ == 'float':
-            comp_dict = {
-                1: 'point',
-                2: 'linestring',
-                3: 'polygon',
-                4: 'multipoint',
-                5: 'multilinestring',
-                6: 'multipolygon',
-                0: 'geometry',
-                100: 'no geometry',
-            }
+
             try:
-                return comp_dict[int(x)].upper()
+                return Vector.OGR_TYPE_DEF[int(x)].upper()
             except (KeyError, NameError):
                 return None
 
