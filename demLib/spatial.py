@@ -776,6 +776,33 @@ class Vector(object):
 
         self.nfeat += 1
 
+    @staticmethod
+    def get_osgeo_geom(geom_string,
+                       geom_type='wkt'):
+        """
+        Method to return a osgeo geometry object
+        :param geom_string: Wkt or json string
+        :param geom_type: 'wkt', 'json', or 'wkb
+        :return: osgeo geometry object
+        """
+        if geom_type == 'wkt':
+            try:
+                return ogr.CreateGeometryFromWkt(geom_string)
+            except:
+                return
+        elif geom_type == 'json':
+            try:
+                return ogr.CreateGeometryFromJson(geom_string)
+            except:
+                return
+        elif geom_type == 'wkb':
+            try:
+                return ogr.CreateGeometryFromWkb(geom_string)
+            except:
+                return
+        else:
+            raise ValueError("Unsupported geometry type")
+
     def merge(self,
               vector,
               remove=False):
