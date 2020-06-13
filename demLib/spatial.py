@@ -401,6 +401,17 @@ class Vector(object):
         'nonetype': ogr.OFSTNone,
         'none': ogr.OFSTNone
     }
+    OGR_GEOM_DEF = {
+        'point': 1,
+        'line': 2,
+        'linestring': 2,
+        'polygon': 3,
+        'multipoint': 4,
+        'multilinestring': 5,
+        'multipolygon': 6,
+        'geometry': 0,
+        'no geometry': 100
+    }
 
     def __init__(self,
                  filename=None,
@@ -641,19 +652,9 @@ class Vector(object):
 
         if type(x).__name__ == 'str':
             comp_str = x.lower()
-            comp_dict = {
-                'point': 1,
-                'line': 2,
-                'linestring': 2,
-                'polygon': 3,
-                'multipoint': 4,
-                'multilinestring': 5,
-                'multipolygon': 6,
-                'geometry': 0,
-                'no geometry': 100
-            }
+
             try:
-                return comp_dict[comp_str]
+                return Vector.OGR_GEOM_DEF[comp_str]
             except (KeyError, NameError):
                 return None
 
