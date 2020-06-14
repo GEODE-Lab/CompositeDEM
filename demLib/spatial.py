@@ -149,7 +149,8 @@ class Raster(object):
                        pctl=25,
                        band_index=0,
                        min_pixels=25,
-                       replace=False):
+                       replace=False,
+                       return_values=False):
 
         """
         Method to extract percentile values from a raster based on vector bounds and
@@ -159,6 +160,7 @@ class Raster(object):
         :param band_index: Which band to operate on
         :param min_pixels: Number of minimum pixels for extraction (default: 25)
         :param replace: If the raster pixels should be replaced by the calculated percentile value
+        :param return_values: If the method should return all pixel values as list
         :return: List of percentiles by vector features
         """
 
@@ -168,6 +170,8 @@ class Raster(object):
             out_arr = np.copy(self.array)
         else:
             out_arr = None
+
+        return_list = []
 
         # loop through all vector features
         for i in range(0, vector.nfeat):
@@ -237,26 +241,31 @@ class Raster(object):
             # extract pixels other than the no-data value
             pixel_vals = list(val for val in temp_vals if val != self.metadata['nodatavalue'])
 
+            if return_values:
+                return_list += pixel_vals
             # replace only if the number of pixels is greater than min value
-            if len(pixel_vals) < min_pixels:
-                pctl_val = None
-
             else:
-                # calculate percentile value
-                pctl_val = np.percentile(pixel_vals, pctl)
+                if len(pixel_vals) < min_pixels:
+                    pctl_val = None
+                else:
+                    # calculate percentile value
+                    pctl_val = np.percentile(pixel_vals, pctl)
 
-                # if replaced specified, replace pixels in the raster array
-                if replace:
-                    for loc in pixel_xyz_loc:
-                        out_arr[loc] = pctl_val
+                    # if replaced specified, replace pixels in the raster array
+                    if replace:
+                        for loc in pixel_xyz_loc:
+                            out_arr[loc] = pctl_val
 
-                    self.array = out_arr
+                        self.array = out_arr
 
-            extract_list.append(pctl_val)
+                extract_list.append(pctl_val)
 
         temp_layer = ras_ds = temp_datasource = None
 
-        return extract_list
+        if return_values:
+            return return_list
+        else:
+            return extract_list
 
     def get_bounds(self,
                    bounds=False,
@@ -389,6 +398,39 @@ class Vector(object):
     """
     Class for vector objects
     """
+    OGR_FIELD_DEF = {
+        'int': ogr.OFTInteger,
+        'integer': ogr.OFTInteger,
+        'long': ogr.OFTInteger,
+        'float': ogr.OFTReal,
+        'double': ogr.OFTReal,
+        'str': ogr.OFTString,
+        'string': ogr.OFTString,
+        'bool': ogr.OFTInteger,
+        'nonetype': ogr.OFSTNone,
+        'none': ogr.OFSTNone
+    }
+    OGR_GEOM_DEF = {
+        'point': 1,
+        'line': 2,
+        'linestring': 2,
+        'polygon': 3,
+        'multipoint': 4,
+        'multilinestring': 5,
+        'multipolygon': 6,
+        'geometry': 0,
+        'no geometry': 100
+    }
+    OGR_TYPE_DEF = {
+        1: 'point',
+        2: 'linestring',
+        3: 'polygon',
+        4: 'multipoint',
+        5: 'multilinestring',
+        6: 'multipolygon',
+        0: 'geometry',
+        100: 'no geometry',
+    }
 
     def __init__(self,
                  filename=None,
@@ -587,10 +629,12 @@ class Vector(object):
                 res = self.spref.ImportFromWkt(spref_str)
 
                 self.layer = self.datasource.CreateLayer('mem_layer',
-                                                          srs=self.spref,
-                                                          geom_type=geom_type)
+                                                         srs=self.spref,
+                                                         geom_type=geom_type)
+
                 fid = ogr.FieldDefn('fid', ogr.OFTInteger)
-                fid.SetPrecision(9)
+                fid.SetPrecision()
+
                 self.layer.CreateField(fid)
                 self.fields = [fid]
 
@@ -612,21 +656,10 @@ class Vector(object):
         """
         val = type(x).__name__.lower()
 
-        val_dict = {
-            'int': ogr.OFTInteger,
-            'long': ogr.OFTInteger,
-            'float': ogr.OFTReal,
-            'double': ogr.OFTReal,
-            'str': ogr.OFTString,
-            'bool': ogr.OFTInteger,
-            'nonetype': ogr.OFSTNone,
-            'none': ogr.OFSTNone,
-        }
-
         try:
-            return val_dict[val]
+            return Vector.OGR_FIELD_DEF[val]
         except (KeyError, NameError):
-            return val_dict['nonetype']
+            return Vector.OGR_FIELD_DEF['nonetype']
 
     @staticmethod
     def ogr_geom_type(x):
@@ -638,35 +671,16 @@ class Vector(object):
 
         if type(x).__name__ == 'str':
             comp_str = x.lower()
-            comp_dict = {
-                'point': 1,
-                'line': 2,
-                'linestring': 2,
-                'polygon': 3,
-                'multipoint': 4,
-                'multilinestring': 5,
-                'multipolygon': 6,
-                'geometry': 0,
-                'no geometry': 100
-            }
+
             try:
-                return comp_dict[comp_str]
+                return Vector.OGR_GEOM_DEF[comp_str]
             except (KeyError, NameError):
                 return None
 
         elif type(x).__name__ == 'int' or type(x).__name__ == 'float':
-            comp_dict = {
-                1: 'point',
-                2: 'linestring',
-                3: 'polygon',
-                4: 'multipoint',
-                5: 'multilinestring',
-                6: 'multipolygon',
-                0: 'geometry',
-                100: 'no geometry',
-            }
+
             try:
-                return comp_dict[int(x)].upper()
+                return Vector.OGR_TYPE_DEF[int(x)].upper()
             except (KeyError, NameError):
                 return None
 
@@ -695,6 +709,34 @@ class Vector(object):
                         val = None
 
             return Vector.ogr_data_type(val)
+
+    def add_field(self,
+                  field_name,
+                  field_type,
+                  **kwargs):
+
+        """
+        Function to add a field to a Vector object
+        :param field_name: Name of the field (string)
+        :param field_type: Type of the field
+        :param kwargs: Keyword arguments: 1) precision: to be set when field type is float
+                                          2) width: tp be set when field type is string
+        :returns: None
+        """
+
+        if field_type in self.OGR_FIELD_DEF:
+            field_type = self.OGR_FIELD_DEF[field_type]
+
+        field = ogr.FieldDefn(field_name, field_type)
+
+        if 'precision' in kwargs and field_type in (ogr.OFTReal, ogr.OFTInteger):
+            field.SetPrecision(kwargs['precision'])
+
+        if 'width' in kwargs and field_type == ogr.OFTString:
+            field.SetWidth(kwargs['width'])
+
+        self.layer.CreateField(field)
+        self.fields += field
 
     def add_feat(self,
                  geom,
@@ -733,6 +775,33 @@ class Vector(object):
             self.attributes.append({primary_key: self.nfeat})
 
         self.nfeat += 1
+
+    @staticmethod
+    def get_osgeo_geom(geom_string,
+                       geom_type='wkt'):
+        """
+        Method to return a osgeo geometry object
+        :param geom_string: Wkt or json string
+        :param geom_type: 'wkt', 'json', or 'wkb
+        :return: osgeo geometry object
+        """
+        if geom_type == 'wkt':
+            try:
+                return ogr.CreateGeometryFromWkt(geom_string)
+            except:
+                return
+        elif geom_type == 'json':
+            try:
+                return ogr.CreateGeometryFromJson(geom_string)
+            except:
+                return
+        elif geom_type == 'wkb':
+            try:
+                return ogr.CreateGeometryFromWkb(geom_string)
+            except:
+                return
+        else:
+            raise ValueError("Unsupported geometry type")
 
     def merge(self,
               vector,

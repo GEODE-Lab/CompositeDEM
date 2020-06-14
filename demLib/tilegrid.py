@@ -34,6 +34,7 @@ class Layer(object):
         self.ncol = None
         self.nrows = None
         self.nodata = nodata
+        self.void_loc = np.where(self.array == self.nodata)
 
         if self.array is not None:
             self.ncol = array.shape[1]
@@ -139,15 +140,15 @@ class Layer(object):
                                 loc_array=loc_array)
 
     def fill(self,
-             bidirectional=True,
-             smooth=False,
-             sigma=3):
+             edge_fill=True):
         """
         Method to fill voids in 2D array by
             Filling voids in 1D array along x axis
             Filling voids in 1D array along y axis
             and taking the mean of two 2D arrays
             This methods leaves out voids at edges
+
+        :param edge_fill: Boolean, if pixels should be filled if they can be even for edge cases
         :return: 2D array
         """
         if len(self.array.shape) == 3:
@@ -170,18 +171,156 @@ class Layer(object):
 
         mean_arr = (xfilled_arr + yfilled_arr)/2.0
 
-        if smooth:
-            smoothed_mean_arr = gaussian_filter(mean_arr,
-                                                sigma=sigma)
-            void_loc = np.where(self.array == self.nodata)
-            mean_arr[void_loc] = smoothed_mean_arr[void_loc]
-
-        if bidirectional:
+        if not edge_fill:
             mean_arr[x_remain_voids] = self.nodata
             mean_arr[y_remain_voids] = self.nodata
 
-        self.array = mean_arr
+        return mean_arr
 
+    @staticmethod
+    def gauss_kern(length=5,
+                   sigma=3.):
+
+        """
+        Method to create a gaussian kernel of given side and sigma
+        """
+        arr_1d = np.linspace(-(length - 1) / 2.,
+                             (length - 1) / 2., length)
+
+        arr_2d_x, arr_2d_y = np.meshgrid(arr_1d,
+                                         arr_1d)
+
+        kernel = np.exp(-0.5 * (np.square(arr_2d_x) + np.square(arr_2d_y)) / np.square(sigma))
+
+        return kernel
+
+    def gauss_convol(self,
+                     kernel_size=5,
+                     sigma=3.):
+        """
+        Fill the voids using a gaussian surface
+        """
+        mask = np.zeros(self.array.shape) + 1
+        mask[self.void_loc] = 0
+
+        if len(self.array.shape) == 3:
+            array = self.array[0, :, :]
+            mask = mask[0, :, :]
+        else:
+            array = self.array
+
+        pad = int((kernel_size - 1) / 2)
+        kernel = self.gauss_kern(kernel_size,
+                                 sigma)
+
+        image_row, image_col = array.shape
+        output = np.zeros(array.shape)
+
+        center_coords = (pad, pad)
+
+        padded_image = np.zeros((image_row + (2 * pad), image_col + (2 * pad))) + self.nodata
+        padded_image[pad:padded_image.shape[0] - pad, pad:padded_image.shape[1] - pad] = array
+
+        padded_mask = np.zeros(padded_image.shape)
+        padded_mask[pad:padded_image.shape[0] - pad, pad:padded_image.shape[1] - pad] = mask
+
+        for row in range(image_row):
+            for col in range(image_col):
+                arr = padded_image[row:(row + kernel_size), col:(col + kernel_size)]
+                work_mask = padded_mask[row:(row + kernel_size), col:(col + kernel_size)]
+                arr_mask = arr.copy() * 0.0 + 1
+                arr_mask[np.where(arr == self.nodata)] = 0
+
+                if work_mask[center_coords] == 0.0:
+
+                    kernel_sum = np.sum(kernel * arr_mask)
+
+                    if kernel_sum == 0.0:
+                        output[row, col] = self.nodata
+                    else:
+                        output[row, col] = np.sum(kernel * arr * arr_mask) / kernel_sum
+                else:
+                    output[row, col] = arr[center_coords]
+
+        self.array = output[np.newaxis, :]
+        self.void_loc = np.where(self.array == self.nodata)
+
+    def ifill(self,
+              sigma=3,
+              start_kernel=3,
+              kernel_steps=2,
+              iterations=3,
+              verbose=True):
+
+        self.array = self.fill()
+
+        for i in range(iterations):
+            kernel_size = start_kernel + kernel_steps * i
+            if verbose:
+                print("Processing {} of {} : Filling by bilinear interpolation")
+
+            if verbose:
+                print("Gaussian smoothing: {}".format(str(iterations),
+                                                      str(kernel_size)))
+            # self.gauss_convol(kernel_size, sigma)
+
+    '''
+    def ifill(self,
+              edge_fill=False,
+              sigma=10,
+              iterations=10,
+              tolerance=0.001):
+        """
+        Method to iteratively fill and smooth a layer till tolerance or iteration
+        :param edge_fill: Boolean, if pixels should be filled if they can be even for edge cases
+        :param sigma: Sigma parameter for gaussian smoothing
+        :param iterations: Number of iterations for smoothing
+        :param tolerance: Tolerance to stop the iterations at
+        :returns: None
+        """
+
+        filled_arr = self.fill(edge_fill=edge_fill)
+        filled_voids = np.where(filled_arr == self.nodata)
+
+        mask = np.zeros(self.array.shape, dtype=self.array.dtype) + 1
+        mask[filled_voids] = 0
+
+        smoothed_arr = gaussian_filter(filled_arr * mask, sigma=sigma)
+        smoothed_arr /= gaussian_filter(mask, sigma=sigma)
+        smoothed_arr[filled_voids] = self.nodata
+
+        temp_arr = self.array.copy()
+
+        voids = np.where(self.array == self.nodata)
+        non_voids = np.where(self.array != self.nodata)
+
+        for i in range(iterations):
+
+            print('Iteration: {}'.format(str(i + 1)))
+
+            diff_arr = temp_arr - smoothed_arr
+            fraction_arr = np.abs(diff_arr)/temp_arr
+
+            max_diff = np.max(fraction_arr[non_voids])
+
+            print('Tolerance: {}'.format(str(max_diff)))
+
+            if tolerance >= max_diff:
+                break
+
+            diff_arr[voids] = self.nodata
+            diff_lyr = Layer(diff_arr, self.nodata)
+            diff_lyr.fill(edge_fill)
+            diff_arr = diff_lyr.array
+
+            smooth_diff = gaussian_filter(diff_arr * mask, sigma=sigma)
+            smooth_diff /= gaussian_filter(mask, sigma=sigma)
+            smoothed_arr = smoothed_arr + smooth_diff
+            smoothed_arr[filled_voids] = self.nodata
+
+        smoothed_arr[filled_voids] = self.nodata
+        self.array[voids] = smoothed_arr[voids]
+    '''
 
 class Edge(object):
     """
@@ -387,10 +526,9 @@ class Tile(Raster, Edge, Layer):
             self.sizex = self.bounds[1] - self.bounds[0]
             self.sizey = self.bounds[3] - self.bounds[2]
 
-        if self.array is not None and self.nodata is not None:
-            self.void_loc = np.where(self.array == self.nodata)
-        else:
-            self.void_loc = None
+        if self.void_loc is None:
+            if self.array is not None and self.nodata is not None:
+                self.void_loc = np.where(self.array == self.nodata)
 
     def __repr__(self):
         """
@@ -461,10 +599,12 @@ class Tile(Raster, Edge, Layer):
         if isinstance(second, Tile):
             if self.metadata['ncols'] != second.metadata['ncols'] or \
                     self.metadata['nrows'] != second.metadata['nrows']:
-
                 raise ProcessingError('Unequal tile sizes')
             else:
-                result.array = self.array + second.array
+                second_mask = np.zeros(second.array.shape) + 1.0
+                second_mask[np.where(second.array == second.nodata)] = 0.0
+
+                result.array = self.array + (second.array * second_mask)
 
         elif type(second) in (float, int):
             result.array = self.array + second
@@ -490,7 +630,13 @@ class Tile(Raster, Edge, Layer):
                     self.metadata['nrows'] != second.metadata['nrows']:
                 raise ProcessingError('Unequal tile sizes')
             else:
-                result.array = self.array - second.array
+                first_mask = np.zeros(self.array.shape) + 1.0
+                first_mask[np.where(self.array == self.nodata)] = 0.0
+
+                second_mask = np.zeros(second.array.shape) + 1.0
+                second_mask[np.where(second.array == second.nodata)] = 0.0
+
+                result.array = (self.array * first_mask) - (second.array * second_mask)
 
         elif type(second) in (float, int):
             result.array = self.array - second
@@ -533,6 +679,7 @@ class Tile(Raster, Edge, Layer):
                 raise ProcessingError("Unequal tile sizes for copy")
             else:
                 self.array[other.void_loc] = self.nodata
+                self.void_loc = np.where(self.array == self.nodata)
         else:
             raise ProcessingError("Unsupported data type for copy")
 
@@ -576,6 +723,15 @@ class Tile(Raster, Edge, Layer):
 
                 else:
                     raise KeyError("Invalid keys in edge dictionary")
+
+    def copy(self):
+        """
+        Method to copy all the properties and attributes from one tile to another
+        """
+        result = Tile()
+        result.__dict__.update(self.__dict__)
+
+        return result
 
 
 class TileGrid(object):
@@ -849,4 +1005,3 @@ class TileGrid(object):
 
             for axis in [0, 1]:
                 self.fill_multi_tile_void_edges(axis)
-

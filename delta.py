@@ -6,18 +6,13 @@ import sys
 Script to apply delta surface fill. This script uses the following:
 1) Text file with full path names of raster files (or VRTs) in the order of their rank for filling
 2) Path name of the output filled file
-
 Example usage:
-
 > python delta.py /tmp/rank_list_file_h001_v001.txt /tmp/output_tile_h001_v001.tif
-
 Example text in rank list text file:
-
 /tmp/thisIsVeryFirstDEM_tileH001V001.tif
 /tmp/TotallySecondDEMFile_tile_h001_v001.tif
 /tmp/tremendouslyBestly_third_tile_h001__v001.tif
 /tmp/OhMyGod__ItsFourth_tile_h__001_V_001.tif
-
 """
 
 if __name__ == '__main__':
