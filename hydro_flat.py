@@ -7,7 +7,7 @@ from demLib.parser import HydroParser
 Script to flatten noisy lake surfaces in a raster DEM (.tif) using a boundary shapefile of the
 lakes.
 
-usage: hydro_flat.py [-h] [--percentile PERCENTILE] [--min_pixels MIN_PIXELS] [--verbose]
+usage: python hydro_flat.py [-h] [--percentile PERCENTILE] [--min_pixels MIN_PIXELS] [--verbose]
                      raster_infile raster_outfile hydro_shpfile
 
 
