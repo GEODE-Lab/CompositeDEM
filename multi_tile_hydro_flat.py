@@ -5,7 +5,7 @@ from demLib.parser import HydroParserMulti
 Script to flatten noisy lake surfaces across rasters spanned by large lakes using a boundary
 shapefile of the lakes.
 
-usage: multi_tile_hydro_flat.py [-h] [--buffer BUFFER] [--max_ntiles MAX_NTILES] [--verbose]
+usage: python multi_tile_hydro_flat.py [-h] [--buffer BUFFER] [--max_ntiles MAX_NTILES] [--verbose]
                                 multi_lake_tiles tile_file out_shpfile raster_file_dir
 
 positional arguments:
