@@ -1004,6 +1004,7 @@ class Vector(object):
                 temp_layer.CreateFeature(temp_feature)
 
             out_vector.layer = temp_layer
+            out_vector.nfeat = len(out_vector.wktlist)
 
             if index:
                 return out_vector, intersect_index
