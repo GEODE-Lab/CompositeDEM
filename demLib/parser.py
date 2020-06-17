@@ -19,6 +19,11 @@ class HydroParser(object):
                                  type=str,
                                  help="Shapefile of water bodies")
 
+        self.parser.add_argument("--multi_tile_file", "-mt",
+                                 default="none",
+                                 type=str,
+                                 help="Shapefile with lakes spanning multiple tiles with stats as attributes "
+                                      "(default: none)")
         self.parser.add_argument("--percentile", "-p",
                                  default=10,
                                  type=int,
