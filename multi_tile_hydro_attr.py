@@ -26,6 +26,7 @@ optional arguments:
                         Maximum number of tiles spanned by a lake, number of tile-name attributes
                         (default: 69)
   --verbose, -v         Display verbosity (default: False)
+
 """
 
 
@@ -76,7 +77,7 @@ def main(multi_lake_tiles,
         for tile_name in tile_names:
 
             tile_idx = next((tile_idx for tile_idx in range(len(tile_vec.nfeat))
-                             if tile_vec.attributes["grid_id"] == tile_name), None)
+                             if tile_vec.attributes[tile_idx]["grid_id"] == tile_name), None)
             if tile_idx is not None:
                 tile_idxs.append(tile_idx)
 
