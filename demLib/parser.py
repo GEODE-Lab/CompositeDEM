@@ -41,9 +41,11 @@ class HydroParserMulti(object):
     Parser object for hydro_flat.py
     """
     def __init__(self):
-        self.parser = argparse.ArgumentParser(description="Script to flatten noisy lake surfaces across rasters " +
-                                                          "spanned by large lakes" +
-                                                          " using a boundary shapefile of the lakes. ")
+        self.parser = argparse.ArgumentParser(description="Script to extract stats as attributes from " +
+                                                          "noisy lake surfaces across rasters spanned by " +
+                                                          "large lakes using a boundary shapefile of the lakes. " +
+                                                          "The computed stats include mean, std deviation, " +
+                                                          "percentiles from 0 - 100 in steps of 5")
 
         self.parser.add_argument("multi_lake_tiles",
                                  type=str,
