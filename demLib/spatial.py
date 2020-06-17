@@ -159,7 +159,7 @@ class Raster(object):
         :param pctl: Percentile to be calculated
         :param band_index: Which band to operate on
         :param min_pixels: Number of minimum pixels for extraction (default: 25)
-        :param replace: If the raster pixels should be replaced by the calculated percentile value
+        :param replace: If the extracted raster pixels should be replaced by the calculated percentile value
         :param return_values: If the method should return all pixel values as list
         :return: List of percentiles by vector features
         """
