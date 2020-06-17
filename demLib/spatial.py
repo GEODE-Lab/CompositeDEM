@@ -150,6 +150,7 @@ class Raster(object):
                        band_index=0,
                        min_pixels=25,
                        replace=False,
+                       replace_val=None,
                        return_values=False):
 
         """
@@ -160,6 +161,7 @@ class Raster(object):
         :param band_index: Which band to operate on
         :param min_pixels: Number of minimum pixels for extraction (default: 25)
         :param replace: If the extracted raster pixels should be replaced by the calculated percentile value
+        :param replace_val: Value to replace the pixel values with
         :param return_values: If the method should return all pixel values as list
         :return: List of percentiles by vector features
         """
@@ -248,8 +250,11 @@ class Raster(object):
                 if len(pixel_vals) < min_pixels:
                     pctl_val = None
                 else:
-                    # calculate percentile value
-                    pctl_val = np.percentile(pixel_vals, pctl)
+                    if replace_val is None:
+                        # calculate percentile value
+                        pctl_val = np.percentile(pixel_vals, pctl)
+                    else:
+                        pctl_val = replace_val
 
                     # if replaced specified, replace pixels in the raster array
                     if replace:
@@ -963,6 +968,7 @@ class Vector(object):
             out_vector.spref = self.spref
             out_vector.fields = self.fields
             out_vector.name = self.name
+            out_vector.attributes = self.attributes
 
             # create layer in memory
             temp_layer = temp_datasource.CreateLayer('temp_layer',
