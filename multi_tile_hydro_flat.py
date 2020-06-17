@@ -1,5 +1,6 @@
 from demLib import Raster, Vector, Common
 from demLib.parser import HydroParserMulti
+import sys
 
 """
 Script to flatten noisy lake surfaces across rasters spanned by large lakes using a boundary
@@ -26,22 +27,28 @@ optional arguments:
   --verbose, -v         Display verbosity (default: False)
 """
 
-if __name__ == '__main__':
 
-    args = HydroParserMulti().parser.parse_args()
-
-    multi_lake_tiles = args.multi_lake_tiles
-    tile_file = args.tile_file
-    out_shpfile = args.out_shpfile
-    raster_file_dir = args.raster_file_dir
-
-    buffer = args.buffer
-    max_ntiles = args.max_ntiles
+def main(multi_lake_tiles,
+         tile_file,
+         out_shpfile,
+         raster_file_dir,
+         buffer,
+         max_ntiles,
+         verbose):
 
     stats = ['mean', 'std_dev'] + list('pctl_{}'.format(str(i*5)) for i in range(0, 21))
 
     multi_vec = Vector(multi_lake_tiles)
     tile_vec = Vector(tile_file)
+
+    if verbose:
+        sys.stdout.write("Multi lakes file: {}\n".format(multi_lake_tiles))
+        sys.stdout.write("Tile shapefile: {}\n".format(tile_file))
+        sys.stdout.write("Output shapefile: {}\n".format(out_shpfile))
+        sys.stdout.write("Raster file folder: {}\n".format(raster_file_dir))
+        sys.stdout.write("Tile buffer: {}\n".format(str(buffer)))
+        sys.stdout.write("Maximum number of overlapping tiles: {}\n".format(str(max_ntiles)))
+        sys.stdout.write("Stats to calculate: {}\n\n".format(' '.join(stats)))
 
     vec_outside_buffer = Vector(geom_type=3,
                                 spref_str=multi_vec.spref_str)
@@ -83,14 +90,15 @@ if __name__ == '__main__':
                     crossing_tile_idxs.append(tile_idx)
 
         if len(crossing_tile_idxs) > 0:
-            print('Lake {} : Tiles - {}'.format(str(multi_vec.attributes['orig_id']),
-                                                ' '.join([tile_vec.attributes[tile_idx]['grid_id']
-                                                          for tile_idx in crossing_tile_idxs])))
+            if verbose:
+                sys.stdout.write('Lake {} : Tiles - {}\n'.format(str(multi_vec.attributes['orig_id']),
+                                                                 ' '.join([tile_vec.attributes[tile_idx]['grid_id']
+                                                                          for tile_idx in crossing_tile_idxs])))
             vec_tile_dict[vec_idx] = crossing_tile_idxs
 
-    print('Number of Multi-tile lakes: {}'.format(len(vec_tile_dict)))
-
-    print('Extracting multi-tile values....')
+    if verbose:
+        sys.stdout.write('Number of Multi-tile lakes: {}\n'.format(len(vec_tile_dict)))
+        sys.stdout.write('Extracting multi-tile values....')
 
     out_vec = Vector(spref_str=multi_vec.spref_str,
                      geom_type=3,
@@ -132,6 +140,22 @@ if __name__ == '__main__':
         out_vec.add_feat(vec_geom, attr=vec_attr)
 
     out_vec.write_vector(out_shpfile)
+
+
+if __name__ == '__main__':
+
+    args = HydroParserMulti().parser.parse_args()
+
+    main(args.multi_lake_tiles,
+         args.tile_file,
+         args.out_shpfile,
+         args.raster_file_dir,
+         args.buffer,
+         args.max_ntiles,
+         args.verbose)
+
+    if args.verbose:
+        sys.stdout.write('\n----------------------------------------------\n Done!\n')
 
 
 
