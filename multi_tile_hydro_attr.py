@@ -43,13 +43,13 @@ def main(multi_lake_tiles,
     tile_vec = Vector(tile_file)
 
     if verbose:
-        sys.stdout.write("Multi lakes file: {}\n".format(multi_lake_tiles))
-        sys.stdout.write("Tile shapefile: {}\n".format(tile_file))
-        sys.stdout.write("Output shapefile: {}\n".format(out_shpfile))
-        sys.stdout.write("Raster file folder: {}\n".format(raster_file_dir))
-        sys.stdout.write("Tile buffer: {}\n".format(str(buffer)))
-        sys.stdout.write("Maximum number of overlapping tiles: {}\n".format(str(max_ntiles)))
-        sys.stdout.write("Stats to calculate: {}\n\n".format(' '.join(stats)))
+        sys.stdout.write("Multi lakes file: {}\n".format(multi_lake_tiles) +
+                         "Tile shapefile: {}\n".format(tile_file) +
+                         "Output shapefile: {}\n".format(out_shpfile) +
+                         "Raster file folder: {}\n".format(raster_file_dir) +
+                         "Tile buffer: {}\n".format(str(buffer)) +
+                         "Maximum number of overlapping tiles: {}\n".format(str(max_ntiles)) +
+                         "Stats to calculate: {}\n\n".format(' '.join(stats)))
 
     vec_outside_buffer = Vector(geom_type=3,
                                 spref_str=multi_vec.spref_str)
