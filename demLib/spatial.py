@@ -504,7 +504,7 @@ class Vector(object):
             self.type = self.layer.GetGeomType()
             self.name = self.layer.GetName()
 
-            # number of features
+            # number of features in the layer
             self.nfeat = self.layer.GetFeatureCount()
 
             if verbose:
