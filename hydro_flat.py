@@ -70,13 +70,13 @@ def main(raster_name,
     hydro_vector_reproj = hydro_vector.reproject(destination_spatial_ref=raster_spref,
                                                  _return=True)
     if verbose:
-        sys.stdout.write(hydro_vector_reproj)
+        sys.stdout.write(hydro_vector_reproj.__repr__())
         sys.stdout.write("\n")
 
     intersect_vector = hydro_vector_reproj.get_intersecting_vector(raster_bounds)
 
     if verbose:
-        sys.stdout.write(intersect_vector)
+        sys.stdout.write(intersect_vector.__repr__())
         sys.stdout.write("\n")
 
     # replace values by percentile
@@ -86,7 +86,9 @@ def main(raster_name,
                                    min_pixels=min_pixels)
 
     if multi_tile_vec is not None:
-        multi_tile_vec_attr_keys = list(multi_tile_vec.attributes)
+
+        multi_tile_vec_attr_keys = list(multi_tile_vec.attributes[0])
+
         percentiles = sorted(list(int((key.split('_')[1]).strip()) for key in multi_tile_vec_attr_keys
                                   if 'pctl' in key))
 
@@ -114,7 +116,7 @@ def main(raster_name,
                     sys.stdout.write("Processing multi-tile geometry {} of {}\n".format(str(idx + 1),
                                                                                         str(len(geom_idx_list))))
 
-                multi_vec = Vector(spref_str=raster_spref,
+                multi_vec = Vector(spref_str=raster_spref.ExportToWkt(),
                                    geom_type=3,
                                    in_memory=True)
                 multi_geom = Vector.get_osgeo_geom(multi_tile_vec.wktlist[geom_idx])
