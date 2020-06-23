@@ -31,7 +31,7 @@ class HydroParser(object):
         self.parser.add_argument("--min_pixels", "-minp",
                                  default=25,
                                  type=int,
-                                 help="Minimum number of raster pixels inside a feature below which " + \
+                                 help="Minimum number of raster pixels inside a feature below which " +
                                       "no flattening is desired (default: 25)")
         self.parser.add_argument("--verbose", "-v",
                                  action="store_true",
@@ -89,4 +89,3 @@ class HydroParserMulti(object):
 
     def __repr__(self):
         return "<Parser object for multi_tile_hydro_flat.py>"
-
