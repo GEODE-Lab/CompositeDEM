@@ -67,15 +67,21 @@ class HydroParserMulti(object):
                                       "tile grid ID with a .tif extension")
 
         self.parser.add_argument("--buffer", "-b",
-                                 default=2000,
+                                 default=5000,
                                  type=float,
                                  help="Distance in projection coords to buffer the tile boundary " +
-                                      "(default: 2000 for ABoVE projection)")
+                                      "(default: 5000m for ABoVE projection)")
         self.parser.add_argument("--max_ntiles", "-m",
-                                 default=69,
+                                 default=70,
                                  type=int,
                                  help="Maximum number of tiles spanned by a lake, number of tile-name attributes " +
-                                      "(default: 69)")
+                                      "(default: 70)")
+
+        self.parser.add_argument("--pctl_steps", "-s",
+                                 default=5,
+                                 type=int,
+                                 help="Steps for computing percentile from 0-100 " +
+                                      "(default: 5)")
 
         self.parser.add_argument("--verbose", "-v",
                                  action="store_true",
