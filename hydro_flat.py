@@ -11,17 +11,24 @@ usage: python hydro_flat.py [-h] [--multi_tile_file MULTI_TILE_FILE] [--percenti
 
 positional arguments:
   raster_infile         Input raster file name
+  
   raster_outfile        Output raster file name
+  
   hydro_shpfile         Shapefile of water bodies
 
 optional arguments:
   -h, --help            show this help message and exit
+  
   --multi_tile_file MULTI_TILE_FILE, -mt MULTI_TILE_FILE
                         Shapefile with lakes spanning multiple tiles with stats as attributes (default: none)
+                        
   --percentile PERCENTILE, -p PERCENTILE
                         Percentile value for final elevation of flat surface (default: 10)
+                        
   --min_pixels MIN_PIXELS, -minp MIN_PIXELS
-                        Minimum number of raster pixels inside a feature below which no flattening is desired (default: 25)
+                        Minimum number of raster pixels inside a feature below which no flattening is desired 
+                        (default: 25)
+                        
   --verbose, -v         Display verbosity (default: False)
 
 '''
