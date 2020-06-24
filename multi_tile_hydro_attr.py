@@ -8,7 +8,7 @@ Script to extract stats as attributes from noisy lake surfaces across rasters sp
 large lakes using a boundary shapefile of the lakes. The computed stats include mean, std deviation, 
 percentiles from 0 - 100 in steps of 5.
 
-usage: python multi_tile_hydro_attr.py [-h] [--buffer BUFFER] [--max_ntiles MAX_NTILES] [--verbose]
+usage: python multi_tile_hydro_attr.py [-h] [-b BUFFER] [-m MAX_NTILES] [-s PCTL_STEPS] [--verbose]
                                 multi_lake_tiles tile_file out_shpfile raster_file_dir
 
 positional arguments:
