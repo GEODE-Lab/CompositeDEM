@@ -740,7 +740,7 @@ class Vector(object):
             field.SetWidth(kwargs['width'])
 
         self.layer.CreateField(field)
-        self.fields += field
+        self.fields += [field]
 
     def add_feat(self,
                  geom,
