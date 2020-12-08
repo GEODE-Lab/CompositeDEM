@@ -23,10 +23,7 @@ Erik Husby
 
 `Anaconda 3.4.1`  
 `python 3.7.6`  
-`gdal 3.0.4.6`  
-`CentOS release 6.9 (Final) - Kernel: 2.6.32-696.18.7.el6.x86_64`  
-`SLURM 17.11.3-2`  
-
+`gdal 3.0.4`  
 
 ### Computing Resources
 
